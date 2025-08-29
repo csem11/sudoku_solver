@@ -7,14 +7,12 @@ class GridDetector:
     def __init__(self, frame):
         self.frame = frame
 
-
     def find_grid(self):
         contours = self._find_contours()
         if not contours:
             return []
 
         return contours[0]
-
 
     def _find_contours(self, min_area=10000, max_area=800000):
 
@@ -44,10 +42,12 @@ class GridDetector:
                 # Check if roughly square (aspect ratio)
                 x, y, w, h = cv.boundingRect(contour)
                 aspect_ratio = float(w / h)
+                corners = approx.reshape(4, 2)
                 score = abs(1.0 - aspect_ratio)
-                ranked_squares.append((score, contour))
+                ranked_squares.append((score, corners))
 
         ranked_squares.sort(key=lambda x: x[0])
         return [contour for score, contour in ranked_squares]
+
 
  
