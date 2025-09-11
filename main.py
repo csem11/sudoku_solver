@@ -6,7 +6,7 @@ Sudoku Solver - Simple grid detection from camera
 import cv2 as cv
 import numpy as np
 from pathlib import Path
-from src import Sudoku, VideoCapture, FrameProcessor, GridDetector
+from src import Sudoku, VideoCapture, FrameProcessor, GridDetector, GridTransformer, CellExtractor
 
 
 def main():
@@ -52,7 +52,6 @@ def process_frame(frame, frame_processor):
     # Convert to grayscale and find edges
     processed = frame_processor.preprocess(frame)
     
-    # Look for grid
     grid_detector = GridDetector(processed)
     grid_contours = grid_detector.find_grid()
     
@@ -71,6 +70,43 @@ def process_frame(frame, frame_processor):
         area = cv.contourArea(grid_contours)
         cv.putText(display_frame, f"Grid Area: {area:.0f}", (10, 30), 
                   cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        # Apply grid transformation and test cell extraction
+        try:
+            # Get the 4 corners from the contour
+            perimeter = cv.arcLength(grid_contours, True)
+            epsilon = 0.02 * perimeter
+            approx = cv.approxPolyDP(grid_contours, epsilon, True)
+            
+            if len(approx) == 4:
+                # Transform the grid to a square
+                grid_transformer = GridTransformer()
+                transformed_grid = grid_transformer.transform(frame, approx)
+                
+                # Test cell extraction
+                cell_extractor = CellExtractor(transformed_grid)
+                print("Testing cell extraction...")
+                
+                # Extract and print cell information
+                cells = cell_extractor.extract_cells()
+                if cells:
+                    print(f"Extracted {len(cells)} cells")
+                    for i, cell in enumerate(cells):
+                        if cell is not None:
+                            print(f"Cell {i}: Shape {cell.shape}, Type {cell.dtype}")
+                        else:
+                            print(f"Cell {i}: None")
+                    
+                    # Show sample cells
+                    cell_extractor.show_sample_cells(cells)
+                else:
+                    print("No cells extracted")
+                
+                # Show transformed grid
+                cv.imshow("Transformed Grid", transformed_grid)
+                
+        except Exception as e:
+            print(f"Grid transformation failed: {e}")
         
     else:
         # No grid found

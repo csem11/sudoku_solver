@@ -44,13 +44,3 @@ class GridTransformer:
         rect[3] = corners[np.argmax(diff)]  # bottom-left
         
         return rect
-
-# Usage example
-if __name__ == "__main__":
-    transformer = GridTransformer(output_size=450)
-    
-    # Example corners from grid detection
-    corners = np.array([[100, 50], [400, 60], [390, 370], [110, 380]])
-    
-    # Transform (assuming you have a frame)
-    # clean_grid = transformer.transform(frame, corners)

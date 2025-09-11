@@ -2,6 +2,7 @@
 """
 Simple test to make sure all imports work
 """
+import numpy as np
 
 def test_imports():
     """Test that we can import all the modules."""

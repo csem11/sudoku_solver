@@ -18,7 +18,6 @@ class Sudoku:
     def generate_board(self):
         """Generate a complete valid Sudoku board using backtracking"""
         
-        
         empty_cell = self._find_empty_cell()
         
         # Base case: if no empty cells, board is complete
