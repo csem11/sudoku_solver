@@ -17,6 +17,7 @@ def main():
     
     # Initialize components
     frame_processor = FrameProcessor()
+    grid_saved = False  # Track if we've already saved a grid
     print("✓ Ready to detect grids!")
     
     # Start camera
@@ -29,7 +30,7 @@ def main():
                 break
             
             # Process the frame
-            process_frame(frame, frame_processor)
+            grid_saved = process_frame(frame, frame_processor, grid_saved)
             
             # Check for key press
             key = cv.waitKey(1) & 0xFF
@@ -43,7 +44,7 @@ def main():
     print("Done!")
 
 
-def process_frame(frame, frame_processor):
+def process_frame(frame, frame_processor, grid_saved):
     """Process one frame to detect grids."""
     
     # Make a copy for drawing
@@ -97,8 +98,12 @@ def process_frame(frame, frame_processor):
                         else:
                             print(f"Cell {i}: None")
                     
-                    # Show sample cells
-                    cell_extractor.show_sample_cells(cells)
+                    # Save all cells to files for debugging (only once)
+                    if not grid_saved:
+                        cell_extractor.save_cells(cells)
+                        grid_saved = True
+                        print("✓ Grid cells saved to cells/ directory")
+                    
                 else:
                     print("No cells extracted")
                 
@@ -115,6 +120,8 @@ def process_frame(frame, frame_processor):
     
     # Show both images side by side
     show_results(display_frame, processed)
+    
+    return grid_saved
 
 
 def show_results(original, processed):
