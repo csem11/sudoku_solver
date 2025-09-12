@@ -118,32 +118,10 @@ def process_frame(frame, frame_processor, grid_saved):
         cv.putText(display_frame, "No Grid", (10, 30), 
                   cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
     
-    # Show both images side by side
-    show_results(display_frame, processed)
     
     return grid_saved
 
 
-def show_results(original, processed):
-    """Show original and processed images side by side."""
-    
-    if len(processed.shape) == 2:
-        processed_color = cv.cvtColor(processed, cv.COLOR_GRAY2BGR)
-    else:
-        processed_color = processed
-    
-
-    combined = np.hstack([original, processed_color])
-    
-
-    cv.imshow("Sudoku Solver - Original | Processed", combined)
-
-
-def save_frame(frame):
-    """Save current frame to file."""
-    filename = f"frame_{len(list(Path('.').glob('frame_*.jpg')))}.jpg"
-    cv.imwrite(filename, frame)
-    print(f"Saved: {filename}")
 
 
 if __name__ == "__main__":

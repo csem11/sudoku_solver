@@ -49,8 +49,10 @@ class CellExtractor:
         kernel = np.ones((5,5),np.uint8)
         dilation = cv.dilate(inverted,kernel,iterations = 1)
         reinverted = cv.bitwise_not(dilation)
+        print(type(reinverted))
+        processed_cell = self._resize_cell(reinverted)
 
-        return reinverted
+        return processed_cell
         
     
     def _crop_cell(self, cell, crop_pct):
@@ -61,6 +63,29 @@ class CellExtractor:
         cropped = cell[crop_y:height-crop_y, crop_x:width-crop_x]
     
         return cropped
+
+    def _resize_cell(self, cell, target_size=(28, 28)):
+
+        h, w = cell.shape
+
+        scale = min(target_size[0]/w, target_size[1]/h)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        
+        # Resize
+        resized = cv.resize(cell, (new_w, new_h))
+        
+        # Create 28x28 canvas and center the digit
+        canvas = np.full(target_size, 255, dtype=np.uint8)
+        
+        # Calculate position to center
+        start_x = (target_size[0] - new_w) // 2
+        start_y = (target_size[1] - new_h) // 2
+        
+        # Place resized image on canvas
+        canvas[start_y:start_y+new_h, start_x:start_x+new_w] = resized
+        
+        return canvas
 
     def save_cells(self, cells, output_dir="cells"):
         """Save all extracted cells to files for debugging."""
