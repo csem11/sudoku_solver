@@ -32,20 +32,25 @@ class CellExtractor:
 
     def preprocess_cell(self, cell):
 
-        cell = self._crop_cell(cell, 15)
+        cell = self._crop_cell(cell, 10)
 
-        res = cv.resize(cell,None,fx=2, fy=2, interpolation =  cv.INTER_LINEAR)
+        res = cv.resize(cell,None,fx=5, fy=5, interpolation =  cv.INTER_LINEAR)
 
         gray = cv.cvtColor(res, cv.COLOR_BGR2GRAY)
-
+        # edges = cv.Canny(gray,100,200)
         # Order/repeating seems to help here
         blur = cv.GaussianBlur(gray,(5,5),0)
-        blur = cv.resize(blur,None,fx=2, fy=2, interpolation =  cv.INTER_LINEAR)
-        blur = cv.GaussianBlur(blur,(5,5),0)
+        # blur = cv.resize(blur,None,fx=2, fy=2, interpolation =  cv.INTER_LINEAR)
+        # blur = cv.GaussianBlur(blur,(5,5),0)
 
         _ ,thresh = cv.threshold(blur,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
+        inverted = cv.bitwise_not(thresh)
 
-        return thresh
+        kernel = np.ones((5,5),np.uint8)
+        dilation = cv.dilate(inverted,kernel,iterations = 1)
+        reinverted = cv.bitwise_not(dilation)
+
+        return reinverted
         
     
     def _crop_cell(self, cell, crop_pct):
