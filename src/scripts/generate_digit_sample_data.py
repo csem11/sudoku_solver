@@ -12,7 +12,7 @@ def main():
     print("Generating synthetic digit sample data...")
     
     # Configuration
-    output_dir = 'data/synthetic_digits'
+    output_dir = '/data/synthetic_digits'
     n_samples = 1000
     font_size = 20
     
