@@ -1,0 +1,1 @@
+from .dataset import retrieve_digit_dataset

@@ -12,7 +12,7 @@ def main():
     print("Generating synthetic digit sample data...")
     
     # Configuration
-    output_dir = '/data/synthetic_digits'
+    output_dir = 'data/synthetic_digits'
     n_samples = 1000
     font_size = 20
     
@@ -24,7 +24,7 @@ def main():
     )
     
     print(f"✓ Generated {n_samples} synthetic digit samples in {output_dir}/")
-    print("Sample files created with format: digit_X_font_Y_sample_Z.png")
+
 
 if __name__ == "__main__":
     main()
