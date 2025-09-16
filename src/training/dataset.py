@@ -25,19 +25,20 @@ def retrieve_digit_dataset(data_dir, return_categorical=True):
     images = []
     labels = []
 
-    # Only look in the 'training' subdir for image files
-    subdir_path = os.path.join(data_dir, 'training')
-    if os.path.exists(subdir_path):
-        for img_file in os.listdir(subdir_path):
-            if img_file.endswith('.jpg') or img_file.endswith('.png'):
-                metadata = parse_filename(img_file)
-                if metadata is None:
-                    print(f"Warning: Could not parse filename {img_file}, skipping...")
-                    continue
+    # Look in both 'manual' and 'synthetic' subdirs for image files
+    for subdir in ['manual', 'synthetic']:
+        subdir_path = os.path.join(data_dir, subdir)
+        if os.path.exists(subdir_path):
+            for img_file in os.listdir(subdir_path):
+                if img_file.endswith('.jpg') or img_file.endswith('.png'):
+                    metadata = parse_filename(img_file)
+                    if metadata is None:
+                        print(f"Warning: Could not parse filename {img_file}, skipping...")
+                        continue
 
-                img = Image.open(os.path.join(subdir_path, img_file)).convert('L')
-                images.append(np.array(img))
-                labels.append(metadata['digit'])
+                    img = Image.open(os.path.join(subdir_path, img_file)).convert('L')
+                    images.append(np.array(img))
+                    labels.append(metadata['digit'])
 
     X = np.array(images)
     y = np.array(labels)

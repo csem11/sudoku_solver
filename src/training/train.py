@@ -37,11 +37,11 @@ def create_model(input_shape=(28, 28, 1), num_classes=10):
 
 
 def train_model(data_dir=None, 
-                batch_size=128, 
-                epochs=150, 
+                batch_size=32, 
+                epochs=100, 
                 validation_split=0.2,
                 save_model=True,
-                model_path='models/digit_classifier.h5'):
+                model_path='models/digit_classifier.keras'):
     """Train the digit classification model."""
     
     # Set default data directory if not provided
@@ -72,21 +72,6 @@ def train_model(data_dir=None,
     # Print model summary
     model.summary()
     
-    # Define callbacks
-    callbacks = [
-        keras.callbacks.EarlyStopping(
-            monitor='val_accuracy',
-            patience=20,
-            restore_best_weights=True
-        ),
-        keras.callbacks.ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.5,
-            patience=10,
-            min_lr=1e-7
-        )
-    ]
-    
     # Train model
     print("Starting training...")
     history = model.fit(
@@ -94,7 +79,6 @@ def train_model(data_dir=None,
         batch_size=batch_size,
         epochs=epochs,
         validation_data=(X_test, y_test),
-        callbacks=callbacks,
         verbose=1
     )
     
@@ -120,13 +104,13 @@ def main():
     parser = argparse.ArgumentParser(description='Train digit classification model')
     parser.add_argument('--data_dir', type=str, default=None,
                        help='Path to synthetic digits dataset (default: auto-detect)')
-    parser.add_argument('--batch_size', type=int, default=128,
+    parser.add_argument('--batch_size', type=int, default=32,
                        help='Batch size for training')
-    parser.add_argument('--epochs', type=int, default=150,
+    parser.add_argument('--epochs', type=int, default=100,
                        help='Number of training epochs')
     parser.add_argument('--validation_split', type=float, default=0.2,
                        help='Fraction of data to use for validation')
-    parser.add_argument('--model_path', type=str, default='models/digit_classifier.h5',
+    parser.add_argument('--model_path', type=str, default='models/digit_classifier.keras',
                        help='Path to save the trained model')
     parser.add_argument('--no_save', action='store_true',
                        help='Do not save the trained model')

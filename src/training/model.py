@@ -9,23 +9,23 @@ class DigitClassifier(keras.Model):
         self.input_shape_param = input_shape
         self.num_classes = num_classes
         
-        # Define layers
-        self.conv1 = layers.Conv2D(64, (3, 3), activation="swish")
+        # Define layers matching the successful notebook architecture
+        self.conv1 = layers.Conv2D(64, (3, 3), activation="swish", padding="same")
         self.bn1 = layers.BatchNormalization()
         self.pool1 = layers.MaxPooling2D((2, 2))
-        self.dropout1 = layers.Dropout(0.5)
+        self.dropout1 = layers.Dropout(0.4)
         
-        self.conv2 = layers.Conv2D(64, (3, 3), activation="swish")
+        self.conv2 = layers.Conv2D(64, (3, 3), activation="swish", padding="same")
         self.bn2 = layers.BatchNormalization()
-        self.dense1 = layers.Dense(128, activation="swish")
+        self.pool2 = layers.MaxPooling2D((2, 2))
         self.dropout2 = layers.Dropout(0.4)
         
-        self.conv3 = layers.Conv2D(32, (2, 2), activation="swish")
+        self.conv3 = layers.Conv2D(32, (2, 2), activation="swish", padding="same")
         self.bn3 = layers.BatchNormalization()
-        self.dropout3 = layers.Dropout(0.4)
+        self.dropout3 = layers.Dropout(0.3)
         
         self.global_avg_pool = layers.GlobalAveragePooling2D()
-        self.dense2 = layers.Dense(128, activation="swish")
+        self.dense1 = layers.Dense(128, activation="swish")
         self.dropout4 = layers.Dropout(0.5)
         self.output_layer = layers.Dense(num_classes, activation="softmax")
     
@@ -37,7 +37,7 @@ class DigitClassifier(keras.Model):
         
         x = self.conv2(x)
         x = self.bn2(x, training=training)
-        x = self.dense1(x)
+        x = self.pool2(x)
         x = self.dropout2(x, training=training)
         
         x = self.conv3(x)
@@ -45,7 +45,7 @@ class DigitClassifier(keras.Model):
         x = self.dropout3(x, training=training)
         
         x = self.global_avg_pool(x)
-        x = self.dense2(x)
+        x = self.dense1(x)
         x = self.dropout4(x, training=training)
         x = self.output_layer(x)
         

@@ -101,9 +101,9 @@ class SyntheticDataGenerator:
         result = np.power(result / 255.0, gamma) * 255.0
         result = np.clip(result, 0, 255).astype(np.uint8)
         
-        # Random noise (reduced probability and intensity)
-        if random.random() < 0.15:  # 15% chance of adding noise (reduced from 30%)
-            noise = np.random.normal(0, random.uniform(2, 8), result.shape)
+        # Even less random noise (lower probability and lower intensity)
+        if random.random() < 0.05:  # 5% chance of adding noise
+            noise = np.random.normal(0, random.uniform(1, 3), result.shape)
             result = cv.add(result, noise.astype(np.uint8))
         
         # Random blur (reduced probability and only slight blur)

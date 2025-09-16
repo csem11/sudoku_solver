@@ -22,6 +22,7 @@ class ManualDigitCollector:
     def __init__(self):
         self.grid = None
         self.cells = None
+        self.processed_cells = None  # Store processed cell images
         self.current_cell = 0
         self.digits = [None] * 81  # 9x9 grid
         self.cell_size = 50
@@ -89,6 +90,15 @@ class ManualDigitCollector:
                         cell_extractor = CellExtractor(self.grid)
                         self.cells = cell_extractor.extract_cells(self.cell_size)
                         
+                        # Process all cells for labeling
+                        self.processed_cells = []
+                        for cell in self.cells:
+                            if cell is not None:
+                                processed_cell = cell_extractor.preprocess_cell(cell)
+                                self.processed_cells.append(processed_cell)
+                            else:
+                                self.processed_cells.append(None)
+                        
                         cv.putText(display_frame, "Grid detected! Press 'c' to capture", 
                                  (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                     else:
@@ -112,12 +122,13 @@ class ManualDigitCollector:
     
     def label_digits(self):
         """Navigate through cells and assign digit labels"""
-        if self.cells is None:
+        if self.cells is None or self.processed_cells is None:
             print("No grid captured. Please capture a grid first.")
             return
         
         print("\n=== DIGIT LABELING ===")
-        print("Navigate through all 81 cells and assign digits 0-9")
+        print("Navigate through all 81 processed cells and assign digits 0-9")
+        print("You will see the preprocessed cell images (same as training data)")
         print("All cells must be assigned before saving")
         
         while True:
@@ -307,13 +318,13 @@ class ManualDigitCollector:
             self.current_cell = 0  # Reset to first cell
     
     def _display_current_cell(self):
-        """Display the current cell being edited"""
-        if self.cells and self.cells[self.current_cell] is not None:
-            # Display raw cell image
-            raw_cell = self.cells[self.current_cell]
+        """Display the current processed cell being edited"""
+        if self.processed_cells and self.processed_cells[self.current_cell] is not None:
+            # Display processed cell image
+            processed_cell = self.processed_cells[self.current_cell]
             
-            # Resize for better visibility
-            display_cell = cv.resize(raw_cell, (200, 200))
+            # Resize for better visibility (processed cells are 28x28, so scale up)
+            display_cell = cv.resize(processed_cell, (200, 200), interpolation=cv.INTER_NEAREST)
             
             # Add current cell info
             row = self.current_cell // 9
@@ -329,16 +340,16 @@ class ManualDigitCollector:
             cv.putText(display_cell, info_text, (10, 30), 
                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             
-            cv.imshow("Current Cell", display_cell)
+            cv.imshow("Current Cell (Processed)", display_cell)
     
     def _display_current_cell_with_commands(self):
-        """Display the current cell with commands overlay"""
-        if self.cells and self.cells[self.current_cell] is not None:
-            # Display raw cell image
-            raw_cell = self.cells[self.current_cell]
+        """Display the current processed cell with commands overlay"""
+        if self.processed_cells and self.processed_cells[self.current_cell] is not None:
+            # Display processed cell image
+            processed_cell = self.processed_cells[self.current_cell]
             
-            # Create a larger display area to fit commands
-            display_cell = cv.resize(raw_cell, (500, 500))
+            # Create a larger display area to fit commands (scale up 28x28 to 500x500)
+            display_cell = cv.resize(processed_cell, (500, 500), interpolation=cv.INTER_NEAREST)
             
             # Add current cell info
             row = self.current_cell // 9
@@ -377,7 +388,7 @@ class ManualDigitCollector:
                 cv.putText(display_cell, cmd, (10, y_offset + i * 25), 
                           cv.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness)
             
-            cv.imshow("Current Cell", display_cell)
+            cv.imshow("Current Cell (Processed)", display_cell)
     
     def _display_grid_overview(self):
         """Display a small overview of the entire grid with current position highlighted"""
@@ -419,18 +430,18 @@ class ManualDigitCollector:
         output_dir = Path("data/digits/manual")
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save individual raw cell images with their assigned digits
+        # Save individual processed cell images with their assigned digits
         saved_count = 0
         
-        for i, (cell, digit) in enumerate(zip(self.cells, self.digits)):
-            if cell is not None and digit is not None:
+        for i, (processed_cell, digit) in enumerate(zip(self.processed_cells, self.digits)):
+            if processed_cell is not None and digit is not None:
                 row = i // 9
                 col = i % 9
                 
-                # Save raw cell image (not processed)
+                # Save pre-processed cell image (already processed during capture)
                 filename = generate_manual_filename(digit, self.grid_number, i)
                 filepath = output_dir / filename
-                cv.imwrite(str(filepath), cell)
+                cv.imwrite(str(filepath), processed_cell)
                 saved_count += 1
         
         # Save the complete grid as a numpy array
@@ -459,12 +470,12 @@ class ManualDigitCollector:
                 count = sum(1 for d in self.digits if d == digit)
                 f.write(f"Digit {digit}: {count} cells\n")
         
-        print(f"Saved {saved_count} digit images to {output_dir}/")
+        print(f"Saved {saved_count} pre-processed digit images to {output_dir}/")
         print("Files saved:")
         print(f"- grid_{self.grid_number}.npy (numpy array)")
         print(f"- grid_{self.grid_number}.txt (text format)")
         print("- data_summary.txt (collection summary)")
-        print("- Individual digit images with labels and grid numbers in filenames")
+        print("- Individual pre-processed digit images with labels and grid numbers in filenames")
         print(f"- Output directory: {output_dir}/")
     
     def _save_digits(self):
@@ -483,7 +494,7 @@ class ManualDigitCollector:
             cells = grid_data['cells']
             digits = grid_data['digits']
             
-            # Save individual cell images with their assigned digits
+            # Save individual processed cell images with their assigned digits
             cell_extractor = CellExtractor(grid)
             grid_saved = 0
             
@@ -492,10 +503,10 @@ class ManualDigitCollector:
                     row = i // 9
                     col = i % 9
                     
-                    # Use existing preprocessing method
+                    # Process cell using cell extractor's preprocessing method
                     processed_cell = cell_extractor.preprocess_cell(cell)
                     
-                    # Save with digit label and grid ID in filename
+                    # Save processed cell with digit label and grid ID in filename
                     filename = generate_manual_filename(digit, grid_id, i)
                     filepath = output_dir / filename
                     cv.imwrite(str(filepath), processed_cell)
@@ -529,11 +540,11 @@ class ManualDigitCollector:
                 count = sum(1 for d in all_digits if d == digit)
                 f.write(f"Digit {digit}: {count} cells\n")
         
-        print(f"\nSaved {total_saved} digit images from {len(self.grids)} grid(s) to {output_dir}/")
+        print(f"\nSaved {total_saved} processed digit images from {len(self.grids)} grid(s) to {output_dir}/")
         print("Files saved:")
         print(f"- {len(self.grids)} individual grid files (grid_*.npy, grid_*.txt)")
         print("- data_summary.txt (collection summary)")
-        print("- Individual digit images with labels in filenames")
+        print("- Individual processed digit images with labels in filenames")
         print(f"- Images saved in: {output_dir}/")
     
     def run(self):
