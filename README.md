@@ -80,31 +80,38 @@ python main.py
 data/
 ├── digits/
 │   ├── manual/          # Manually collected digit images
-│   │   ├── 0_g0_c0.jpg     # digit_grid_cell.jpg
-│   │   ├── 1_g0_c1.jpg
+│   │   ├── 0_g0_c0_man.jpg     # digit_grid_cell_man.jpg
+│   │   ├── 1_g0_c1_man.jpg
 │   │   └── ...
 │   └── synthetic/       # Generated synthetic images
-│       ├── syn_0_g0_c0_000.jpg  # syn_digit_grid_cell_id.jpg
-│       ├── syn_1_g0_c1_001.jpg
+│       ├── 0_g0_c0_000_syn.jpg     # digit_grid_cell_id_syn.jpg
+│       ├── 1_g0_c1_001_syn.jpg
 │       └── ...
 ```
 
 ### Naming Convention
 
-**Manual Images**: `{digit}_g{grid_id}_c{cell_id}.jpg`
+**Manual Images**: `{digit}_g{grid_id}_c{cell_id}_man.jpg`
 - `digit`: The digit value (0-9)
 - `grid_id`: Grid identifier (0, 1, 2, ...)
 - `cell_id`: Cell position in 9x9 grid (0-80)
+- `_man`: Manual image identifier
 
-**Synthetic Images**: `syn_{digit}_g{grid_id}_c{cell_id}_{synthetic_id}.jpg`
+**Synthetic Images**: `{digit}_g{grid_id}_c{cell_id}_{synthetic_id}_syn.jpg`
 - `digit`: The digit value (0-9)
 - `grid_id`: Grid identifier (0, 1, 2, ...)
 - `cell_id`: Cell position in 9x9 grid (0-80)
 - `synthetic_id`: Synthetic sample identifier (000, 001, 002, ...)
+- `_syn`: Synthetic image identifier
 
 **Examples**:
-- `5_g0_c23.jpg` - Manual image of digit 5 from grid 0, cell 23
-- `syn_5_g0_c23_001.jpg` - Synthetic image of digit 5 from grid 0, cell 23, sample 1
+- `5_g0_c23_man.jpg` - Manual image of digit 5 from grid 0, cell 23
+- `5_g0_c23_001_syn.jpg` - Synthetic image of digit 5 from grid 0, cell 23, sample 1
+
+**Key Benefits**:
+- **Identical Structure**: Both manual and synthetic images use the same base format
+- **Easy Parsing**: Simple, consistent naming pattern
+- **Clear Distinction**: `_man` suffix for manual, `_syn` suffix for synthetic
 
 ## Project Structure
 

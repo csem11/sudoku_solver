@@ -11,8 +11,8 @@ def parse_manual_filename(filename: str) -> Optional[Dict[str, Any]]:
     """
     Parse manual image filename to extract metadata.
     
-    Format: {digit}_{grid_id}_{cell_id}.jpg
-    Example: "5_g0_c23.jpg" -> {"digit": 5, "grid_id": 0, "cell_id": 23, "type": "manual"}
+    Format: {digit}_g{grid_id}_c{cell_id}_man.jpg
+    Example: "5_g0_c23_man.jpg" -> {"digit": 5, "grid_id": 0, "cell_id": 23, "type": "manual"}
     
     Args:
         filename: The filename to parse
@@ -26,10 +26,10 @@ def parse_manual_filename(filename: str) -> Optional[Dict[str, Any]]:
         
         # Split by underscore
         parts = name.split('_')
-        if len(parts) != 3:
+        if len(parts) != 4 or parts[3] != 'man':
             return None
             
-        digit, grid_part, cell_part = parts
+        digit, grid_part, cell_part, man_part = parts
         
         # Parse digit
         digit_val = int(digit)
@@ -60,8 +60,8 @@ def parse_synthetic_filename(filename: str) -> Optional[Dict[str, Any]]:
     """
     Parse synthetic image filename to extract metadata.
     
-    Format: syn_{digit}_{grid_id}_{cell_id}_{synthetic_id}.jpg
-    Example: "syn_5_g0_c23_001.jpg" -> {"digit": 5, "grid_id": 0, "cell_id": 23, "synthetic_id": 1, "type": "synthetic"}
+    Format: {digit}_g{grid_id}_c{cell_id}_{synthetic_id}_syn.jpg
+    Example: "5_g0_c23_001_syn.jpg" -> {"digit": 5, "grid_id": 0, "cell_id": 23, "synthetic_id": 1, "type": "synthetic"}
     
     Args:
         filename: The filename to parse
@@ -75,10 +75,10 @@ def parse_synthetic_filename(filename: str) -> Optional[Dict[str, Any]]:
         
         # Split by underscore
         parts = name.split('_')
-        if len(parts) != 5 or parts[0] != 'syn':
+        if len(parts) != 5 or parts[4] != 'syn':
             return None
             
-        _, digit, grid_part, cell_part, synthetic_id = parts
+        digit, grid_part, cell_part, synthetic_id, syn_part = parts
         
         # Parse digit
         digit_val = int(digit)
@@ -132,7 +132,7 @@ def generate_manual_filename(digit: int, grid_id: int, cell_id: int) -> str:
     """
     Generate manual image filename.
     
-    Format: {digit}_{grid_id}_{cell_id}.jpg
+    Format: {digit}_g{grid_id}_c{cell_id}_man.jpg
     
     Args:
         digit: The digit value (0-9)
@@ -142,14 +142,14 @@ def generate_manual_filename(digit: int, grid_id: int, cell_id: int) -> str:
     Returns:
         Generated filename
     """
-    return f"{digit}_g{grid_id}_c{cell_id}.jpg"
+    return f"{digit}_g{grid_id}_c{cell_id}_man.jpg"
 
 
 def generate_synthetic_filename(digit: int, grid_id: int, cell_id: int, synthetic_id: int) -> str:
     """
     Generate synthetic image filename.
     
-    Format: syn_{digit}_{grid_id}_{cell_id}_{synthetic_id}.jpg
+    Format: {digit}_g{grid_id}_c{cell_id}_{synthetic_id}_syn.jpg
     
     Args:
         digit: The digit value (0-9)
@@ -160,7 +160,7 @@ def generate_synthetic_filename(digit: int, grid_id: int, cell_id: int, syntheti
     Returns:
         Generated filename
     """
-    return f"syn_{digit}_g{grid_id}_c{cell_id}_{synthetic_id:03d}.jpg"
+    return f"{digit}_g{grid_id}_c{cell_id}_{synthetic_id:03d}_syn.jpg"
 
 
 def get_cell_position(cell_id: int) -> Tuple[int, int]:
@@ -208,12 +208,12 @@ def validate_filename(filename: str) -> bool:
 # Example usage and testing
 if __name__ == "__main__":
     # Test manual filename parsing
-    test_manual = "5_g0_c23.jpg"
+    test_manual = "5_g0_c23_man.jpg"
     result = parse_manual_filename(test_manual)
     print(f"Manual: {test_manual} -> {result}")
     
     # Test synthetic filename parsing
-    test_synthetic = "syn_5_g0_c23_001.jpg"
+    test_synthetic = "5_g0_c23_001_syn.jpg"
     result = parse_synthetic_filename(test_synthetic)
     print(f"Synthetic: {test_synthetic} -> {result}")
     
