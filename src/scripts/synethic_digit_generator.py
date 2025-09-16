@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.utils.naming import parse_manual_filename, generate_synthetic_filename
 
 
+
 class SyntheticDataGenerator:
     def __init__(self, manual_data_dir: str = "data/digits/manual", 
                  synthetic_data_dir: str = "data/digits/synthetic"):
@@ -57,14 +58,14 @@ class SyntheticDataGenerator:
                 
         return images
     
-    def _perspective_transform(self, img: np.ndarray, max_shift: float = 0.1) -> np.ndarray:
+    def _perspective_transform(self, img: np.ndarray, max_shift: float = 0.03) -> np.ndarray:
         """Apply random perspective transformation to simulate camera angle variations"""
         h, w = img.shape[:2]
         
         # Define original corners
         corners = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
         
-        # Add random shifts to corners
+        # Add random shifts to corners (reduced from 0.1 to 0.03)
         shift_range = int(min(w, h) * max_shift)
         new_corners = corners.copy()
         
@@ -87,37 +88,37 @@ class SyntheticDataGenerator:
         """Apply various shading and lighting variations"""
         result = img.copy()
         
-        # Random brightness adjustment
-        brightness = random.uniform(-30, 30)
+        # Random brightness adjustment (reduced range)
+        brightness = random.uniform(-15, 15)
         result = cv.add(result, brightness)
         
-        # Random contrast adjustment
-        contrast = random.uniform(0.7, 1.3)
+        # Random contrast adjustment (reduced range)
+        contrast = random.uniform(0.85, 1.15)
         result = cv.multiply(result, contrast)
         
-        # Random gamma correction
-        gamma = random.uniform(0.8, 1.2)
+        # Random gamma correction (reduced range)
+        gamma = random.uniform(0.9, 1.1)
         result = np.power(result / 255.0, gamma) * 255.0
         result = np.clip(result, 0, 255).astype(np.uint8)
         
-        # Random noise
-        if random.random() < 0.3:  # 30% chance of adding noise
-            noise = np.random.normal(0, random.uniform(5, 15), result.shape)
+        # Random noise (reduced probability and intensity)
+        if random.random() < 0.15:  # 15% chance of adding noise (reduced from 30%)
+            noise = np.random.normal(0, random.uniform(2, 8), result.shape)
             result = cv.add(result, noise.astype(np.uint8))
         
-        # Random blur (slight)
-        if random.random() < 0.2:  # 20% chance of adding blur
-            kernel_size = random.choice([3, 5])
+        # Random blur (reduced probability and only slight blur)
+        if random.random() < 0.1:  # 10% chance of adding blur (reduced from 20%)
+            kernel_size = 3  # Only use 3x3 kernel
             result = cv.GaussianBlur(result, (kernel_size, kernel_size), 0)
         
         return result
     
-    def _rotation_transform(self, img: np.ndarray, max_angle: float = 10.0) -> np.ndarray:
+    def _rotation_transform(self, img: np.ndarray, max_angle: float = 3.0) -> np.ndarray:
         """Apply slight rotation to simulate hand positioning variations"""
         h, w = img.shape[:2]
         center = (w // 2, h // 2)
         
-        # Random rotation angle
+        # Random rotation angle (reduced from 10.0 to 3.0 degrees)
         angle = random.uniform(-max_angle, max_angle)
         
         # Get rotation matrix
@@ -128,11 +129,11 @@ class SyntheticDataGenerator:
         
         return rotated
     
-    def _scale_transform(self, img: np.ndarray, scale_range: Tuple[float, float] = (0.9, 1.1)) -> np.ndarray:
+    def _scale_transform(self, img: np.ndarray, scale_range: Tuple[float, float] = (0.95, 1.05)) -> np.ndarray:
         """Apply slight scaling variations"""
         h, w = img.shape[:2]
         
-        # Random scale factor
+        # Random scale factor (reduced range from 0.9-1.1 to 0.95-1.05)
         scale = random.uniform(scale_range[0], scale_range[1])
         new_w = int(w * scale)
         new_h = int(h * scale)
@@ -167,8 +168,8 @@ class SyntheticDataGenerator:
             self._scale_transform
         ]
         
-        # Randomly select 2-4 transformations to apply
-        num_transforms = random.randint(2, 4)
+        # Randomly select 1-3 transformations to apply (reduced from 2-4)
+        num_transforms = random.randint(1, 3)
         selected_transforms = random.sample(transforms, num_transforms)
         
         for transform in selected_transforms:

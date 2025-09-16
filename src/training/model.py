@@ -15,10 +15,10 @@ class DigitClassifier(keras.Model):
         self.pool1 = layers.MaxPooling2D((2, 2))
         self.dropout1 = layers.Dropout(0.5)
         
-        # self.conv2 = layers.Conv2D(64, (3, 3), activation="swish")
-        # self.bn2 = layers.BatchNormalization()
-        # self.dense1 = layers.Dense(128, activation="swish")
-        # self.dropout2 = layers.Dropout(0.4)
+        self.conv2 = layers.Conv2D(64, (3, 3), activation="swish")
+        self.bn2 = layers.BatchNormalization()
+        self.dense1 = layers.Dense(128, activation="swish")
+        self.dropout2 = layers.Dropout(0.4)
         
         self.conv3 = layers.Conv2D(32, (2, 2), activation="swish")
         self.bn3 = layers.BatchNormalization()
@@ -35,10 +35,10 @@ class DigitClassifier(keras.Model):
         x = self.pool1(x)
         x = self.dropout1(x, training=training)
         
-        # x = self.conv2(x)
-        # x = self.bn2(x, training=training)
-        # x = self.dense1(x)
-        # x = self.dropout2(x, training=training)
+        x = self.conv2(x)
+        x = self.bn2(x, training=training)
+        x = self.dense1(x)
+        x = self.dropout2(x, training=training)
         
         x = self.conv3(x)
         x = self.bn3(x, training=training)

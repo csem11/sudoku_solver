@@ -48,7 +48,7 @@ def train_model(data_dir=None,
     if data_dir is None:
         # Get the project root directory (2 levels up from this file)
         project_root = Path(__file__).parent.parent.parent
-        data_dir = project_root / 'data' / 'synthetic_digits'
+        data_dir = project_root / 'data' / 'digits'
         data_dir = str(data_dir)
     
     print(f"Loading dataset from: {data_dir}")
