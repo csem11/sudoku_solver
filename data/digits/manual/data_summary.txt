@@ -1,0 +1,19 @@
+Manual Digit Collection Summary
+========================================
+Grid Number: 3
+Total cells processed: 81
+Digits assigned: 81
+Empty cells: 0
+NOTE: All cells must be assigned digits 0-9 (no blanks allowed)
+
+Digit distribution:
+Digit 0: 48 cells
+Digit 1: 5 cells
+Digit 2: 5 cells
+Digit 3: 4 cells
+Digit 4: 4 cells
+Digit 5: 3 cells
+Digit 6: 2 cells
+Digit 7: 4 cells
+Digit 8: 4 cells
+Digit 9: 2 cells

@@ -1,1 +1,0 @@
-from .syntheic_digits import generate_sample_digits

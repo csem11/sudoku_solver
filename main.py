@@ -30,7 +30,11 @@ def main():
                 break
             
             # Process the frame
-            grid_saved = process_frame(frame, frame_processor, grid_saved)
+            grid_saved, display_frame, processed = process_frame(frame, frame_processor, grid_saved)
+            
+            # Show both the original frame with grid and the processed frame
+            cv.imshow("Camera with Grid", display_frame)
+            cv.imshow("Processed", processed)
             
             # Check for key press
             key = cv.waitKey(1) & 0xFF
@@ -119,14 +123,11 @@ def process_frame(frame, frame_processor, grid_saved):
                   cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
     
     
-    return grid_saved
+    return grid_saved, display_frame, processed
 
 
 
 
 if __name__ == "__main__":
     main()
-
-
-
 
