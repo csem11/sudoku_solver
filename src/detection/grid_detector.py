@@ -4,19 +4,23 @@ import numpy as np
 
 
 class GridDetector:
-    def __init__(self, frame):
-        self.frame = frame
+    def __init__(self):
+        pass
 
-    def find_grid(self):
-        contours = self._find_contours()
+    def detect(self, frame):
+        """Detect grid contour in the given frame"""
+        contours = self._find_contours(frame)
         if not contours:
-            return []
+            return None
 
         return contours[0]
 
-    def _find_contours(self, min_area=10000, max_area=800000):
+    def find_grid(self, frame):
+        """Legacy method - use detect() instead"""
+        return self.detect(frame)
 
-        contours, _ = cv.findContours(self.frame, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    def _find_contours(self, frame, min_area=10000, max_area=800000):
+        contours, _ = cv.findContours(frame, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
         size_filtered = []
         for contour in contours:

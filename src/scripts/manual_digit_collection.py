@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.capture import VideoCapture, FrameProcessor
 from src.detection import GridDetector, GridTransformer, CellExtractor
+from src.generation import GridGenerator
 from src.utils.naming import generate_manual_filename
 
 
@@ -25,9 +26,13 @@ class ManualDigitCollector:
         self.processed_cells = None  # Store processed cell images
         self.current_cell = 0
         self.digits = [None] * 81  # 9x9 grid
+        self.predicted_digits = [None] * 81  # AI predictions
+        self.prediction_confidence = [0.0] * 81  # Confidence scores
         self.cell_size = 50
         self.output_size = 450
         self.grid_number = self._get_next_grid_number()
+        self.grid_generator = GridGenerator()
+        self.use_predictions = True  # Flag to enable/disable predictions
     
     def _get_next_grid_number(self):
         """Get next available grid number to avoid overwriting data"""
@@ -46,6 +51,47 @@ class ManualDigitCollector:
                     continue
         
         return max(existing_grids, default=-1) + 1
+    
+    def _generate_predictions(self):
+        """Generate AI predictions for all cells"""
+        if self.processed_cells is None or len(self.processed_cells) != 81:
+            print("Cannot generate predictions: need 81 processed cells")
+            return False
+        
+        try:
+            # Convert processed cells to the format expected by GridGenerator
+            cell_images = []
+            for cell in self.processed_cells:
+                if cell is not None:
+                    # Ensure cell is in the right format (28x28 grayscale)
+                    if len(cell.shape) == 2:
+                        cell = cell.reshape(28, 28, 1)
+                    cell_images.append(cell)
+                else:
+                    # Create empty cell for missing cells
+                    empty_cell = np.zeros((28, 28, 1), dtype=np.uint8)
+                    cell_images.append(empty_cell)
+            
+            cell_images = np.array(cell_images)
+            
+            # Generate predictions
+            predicted_grid, prob_grid = self.grid_generator.generate_grid(cell_images, include_prob_grid=True)
+            
+            # Flatten to 1D arrays
+            self.predicted_digits = predicted_grid.flatten().tolist()
+            self.prediction_confidence = prob_grid.flatten().tolist()
+            
+            # Pre-populate digits with predictions
+            self.digits = self.predicted_digits.copy()
+            
+            print(f"Generated predictions for {len([d for d in self.predicted_digits if d != 0])} non-empty cells")
+            print(f"Average confidence: {np.mean(self.prediction_confidence):.3f}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error generating predictions: {e}")
+            return False
         
     def capture_grid(self):
         """Capture a Sudoku grid from camera"""
@@ -53,6 +99,7 @@ class ManualDigitCollector:
         print("Instructions:")
         print("- Position the Sudoku grid in the camera view")
         print("- Press 'c' to capture when grid is detected")
+        print("- Press 'p' to toggle AI predictions on/off")
         print("- Press 'q' to quit")
         
         frame_processor = FrameProcessor()
@@ -68,8 +115,8 @@ class ManualDigitCollector:
                 processed = frame_processor.preprocess(frame)
                 display_frame = frame.copy()
                 
-                grid_detector = GridDetector(processed)
-                grid_contours = grid_detector.find_grid()
+                grid_detector = GridDetector()
+                grid_contours = grid_detector.detect(processed)
                 
                 if grid_contours is not None and len(grid_contours) > 0:
                     # Draw grid outline
@@ -113,12 +160,55 @@ class ManualDigitCollector:
                 key = cv.waitKey(1) & 0xFF
                 if key == ord('q'):
                     return False
+                elif key == ord('p'):  # Toggle predictions
+                    self.use_predictions = not self.use_predictions
+                    print(f"AI Predictions: {'Enabled' if self.use_predictions else 'Disabled'}")
                 elif key == ord('c') and self.grid is not None:
                     print("Grid captured successfully!")
+                    
+                    # Generate AI predictions if enabled
+                    if self.use_predictions:
+                        print("Generating AI predictions...")
+                        if self._generate_predictions():
+                            print("Predictions generated! You can now review and correct them.")
+                            self._show_prediction_stats()
+                        else:
+                            print("Failed to generate predictions. Starting with empty grid.")
+                            # Reset to empty if predictions failed
+                            self.digits = [None] * 81
+                            self.predicted_digits = [None] * 81
+                            self.prediction_confidence = [0.0] * 81
+                    
+                    # Position windows to avoid overlap
+                    self._position_windows()
                     return True
         
         cv.destroyAllWindows()
         return False
+    
+    def _position_windows(self):
+        """Position all windows horizontally side by side"""
+        # Simple horizontal positioning - no screen size detection needed
+        cell_x = 50
+        cell_y = 50
+        overview_x = 600  # Position overview window to the right of cell window
+        
+        overview_y = 50
+        
+        
+        # Position windows with a small delay to ensure they exist
+        import time
+        time.sleep(0.1)  # Small delay to ensure windows are created
+        
+        try:
+            cv.moveWindow("Current Cell (Processed)", cell_x, cell_y)
+        except:
+            pass  # Window might not exist yet
+        
+        try:
+            cv.moveWindow("Grid Overview", overview_x, overview_y)
+        except:
+            pass  # Window might not exist yet
     
     def label_digits(self):
         """Navigate through cells and assign digit labels"""
@@ -129,7 +219,12 @@ class ManualDigitCollector:
         print("\n=== DIGIT LABELING ===")
         print("Navigate through all 81 processed cells and assign digits 0-9")
         print("You will see the preprocessed cell images (same as training data)")
+        print("AI predictions are pre-populated - review and correct as needed")
+        print("Use A/D/W/S to navigate, number keys to assign digits")
         print("All cells must be assigned before saving")
+        
+        # Ensure windows are properly positioned at start
+        self._position_windows()
         
         while True:
             # Display current cell with commands
@@ -149,8 +244,22 @@ class ManualDigitCollector:
                 if unassigned:
                     print(f"ERROR: {len(unassigned)} cells are still unassigned: {unassigned}")
                     print("All cells must be assigned digits 0-9 before saving.")
+                    print("Press 'i' to see prediction statistics for guidance.")
                     continue
-                print("All 81 cells have been assigned digits! Saving...")
+                
+                # Show final statistics
+                print("All 81 cells have been assigned digits!")
+                if any(self.predicted_digits):
+                    print("\nFinal Statistics:")
+                    self._show_prediction_stats()
+                    
+                    # Show correction summary
+                    corrections = sum(1 for i in range(81) 
+                                    if self.digits[i] != self.predicted_digits[i] 
+                                    and self.predicted_digits[i] is not None)
+                    print(f"Corrections made: {corrections}")
+                
+                print("Saving...")
                 break
             elif key in [ord('0'), ord('1'), ord('2'), ord('3'), ord('4'), ord('5'), 
                         ord('6'), ord('7'), ord('8'), ord('9')]:
@@ -163,25 +272,33 @@ class ManualDigitCollector:
                     print(f"Auto-advanced to cell {self.current_cell}")
                 else:
                     print("Reached last cell - use A/W to go back")
-            elif key == ord('a'):  # Previous cell
+            elif key == ord('r'):  # Reset to AI prediction
+                if self.predicted_digits[self.current_cell] is not None:
+                    self.digits[self.current_cell] = self.predicted_digits[self.current_cell]
+                    print(f"Cell {self.current_cell}: Reset to AI prediction {self.predicted_digits[self.current_cell]}")
+                else:
+                    print(f"Cell {self.current_cell}: No AI prediction available")
+            elif key == ord('i'):  # Show prediction info
+                self._show_prediction_stats()
+            elif key == ord('a'):  # Left
                 if self.current_cell > 0:
                     self.current_cell -= 1
                     print(f"Moved to cell {self.current_cell}")
                 else:
                     print("Already at first cell")
-            elif key == ord('d'):  # Next cell
+            elif key == ord('d'):  # Right
                 if self.current_cell < 80:
                     self.current_cell += 1
                     print(f"Moved to cell {self.current_cell}")
                 else:
                     print("Already at last cell")
-            elif key == ord('w'):  # Up (previous row)
+            elif key == ord('w'):  # Up
                 if self.current_cell >= 9:
                     self.current_cell -= 9
                     print(f"Moved to cell {self.current_cell}")
                 else:
                     print("Already at top row")
-            elif key == ord('s'):  # Down (next row)
+            elif key == ord('s'):  # Down
                 if self.current_cell < 72:
                     self.current_cell += 9
                     print(f"Moved to cell {self.current_cell}")
@@ -195,7 +312,7 @@ class ManualDigitCollector:
         """Allow digit assignment for a specific grid immediately after capture"""
         print(f"\nAssigning digits for Grid {grid_index + 1}...")
         print("Instructions:")
-        print("- Use arrow keys to navigate between cells")
+        print("- Use A/D/W/S to navigate between cells")
         print("- Press number keys (0-9) to assign digits")
         print("- Press 'x' to clear current cell")
         print("- Press 'd' when done with this grid")
@@ -231,13 +348,13 @@ class ManualDigitCollector:
                 # Update the grid data to clear the digit
                 self.grids[grid_index]['digits'][self.current_cell] = None
                 print(f"Grid {grid_index + 1}, Cell {self.current_cell}: Cleared")
-            elif key == 83:  # Right arrow
+            elif key == ord('d'):  # Right
                 self.current_cell = min(80, self.current_cell + 1)
-            elif key == 81:  # Left arrow
+            elif key == ord('a'):  # Left
                 self.current_cell = max(0, self.current_cell - 1)
-            elif key == 84:  # Down arrow
+            elif key == ord('s'):  # Down
                 self.current_cell = min(80, self.current_cell + 9)
-            elif key == 82:  # Up arrow
+            elif key == ord('w'):  # Up
                 self.current_cell = max(0, self.current_cell - 9)
         
         return True
@@ -250,7 +367,7 @@ class ManualDigitCollector:
         
         print(f"\nStarting digit collection for {len(self.grids)} grid(s)...")
         print("Instructions:")
-        print("- Use arrow keys to navigate between cells")
+        print("- Use A/D/W/S to navigate between cells")
         print("- Press number keys (0-9) to assign digits")
         print("- Press 'x' to clear current cell")
         print("- Press 'n' to go to next grid")
@@ -298,13 +415,13 @@ class ManualDigitCollector:
                 # Update the grid data to clear the digit
                 self.grids[current_grid_index]['digits'][self.current_cell] = None
                 print(f"Grid {current_grid_index + 1}, Cell {self.current_cell}: Cleared")
-            elif key == 83:  # Right arrow
+            elif key == ord('d'):  # Right
                 self.current_cell = min(80, self.current_cell + 1)
-            elif key == 81:  # Left arrow
+            elif key == ord('a'):  # Left
                 self.current_cell = max(0, self.current_cell - 1)
-            elif key == 84:  # Down arrow
+            elif key == ord('s'):  # Down
                 self.current_cell = min(80, self.current_cell + 9)
-            elif key == 82:  # Up arrow
+            elif key == ord('w'):  # Up
                 self.current_cell = max(0, self.current_cell - 9)
         
         cv.destroyAllWindows()
@@ -355,6 +472,8 @@ class ManualDigitCollector:
             row = self.current_cell // 9
             col = self.current_cell % 9
             current_digit = self.digits[self.current_cell]
+            predicted_digit = self.predicted_digits[self.current_cell] if self.predicted_digits[self.current_cell] is not None else None
+            confidence = self.prediction_confidence[self.current_cell] if self.prediction_confidence[self.current_cell] is not None else 0.0
             
             # Cell info
             info_text = f"Cell {self.current_cell}/80 (Row {row}, Col {col})"
@@ -363,32 +482,42 @@ class ManualDigitCollector:
             else:
                 info_text += " - Empty"
             
-            # Draw background rectangle for text
-            cv.rectangle(display_cell, (5, 5), (495, 35), (0, 0, 0), -1)
-            cv.putText(display_cell, info_text, (10, 25), 
-                      cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            # Prediction info
+            if predicted_digit is not None and predicted_digit != 0:
+                info_text += f" [AI: {predicted_digit} ({confidence:.2f})]"
+            
+            # Draw background rectangle for text with better contrast
+            cv.rectangle(display_cell, (5, 5), (495, 40), (0, 0, 0), -1)
+            cv.rectangle(display_cell, (7, 7), (493, 38), (50, 50, 50), 2)  # Border for better visibility
+            cv.putText(display_cell, info_text, (15, 30), 
+                      cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
             # Commands overlay with background
             commands = [
                 "COMMANDS:",
                 "0-9: Assign digit",
-                "A/D: Left/Right", 
-                "W/S: Up/Down",
+                "A/D/W/S: Navigate", 
+                "R: Reset to AI prediction",
+                "I: Show prediction stats",
                 "F: Finish & Save",
                 "Q: Quit"
             ]
             
-            # Draw background for commands
-            cv.rectangle(display_cell, (5, 40), (495, 200), (0, 0, 0), -1)
+            # Draw background for commands with better contrast
+            cv.rectangle(display_cell, (5, 45), (495, 240), (0, 0, 0), -1)
+            cv.rectangle(display_cell, (7, 47), (493, 238), (50, 50, 50), 2)  # Border for better visibility
             
-            y_offset = 60
+            y_offset = 70
             for i, cmd in enumerate(commands):
-                color = (0, 255, 0) if i == 0 else (255, 255, 255)
+                color = (0, 150, 0) if i == 0 else (255, 255, 255)  # Darker green for header
                 thickness = 2 if i == 0 else 1
-                cv.putText(display_cell, cmd, (10, y_offset + i * 25), 
-                          cv.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness)
+                font_scale = 0.6 if i == 0 else 0.5
+                cv.putText(display_cell, cmd, (15, y_offset + i * 28), 
+                          cv.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
             
             cv.imshow("Current Cell (Processed)", display_cell)
+            # Ensure proper window positioning
+            self._position_windows()
     
     def _display_grid_overview(self):
         """Display a small overview of the entire grid with current position highlighted"""
@@ -398,7 +527,7 @@ class ManualDigitCollector:
         # Create a small overview
         overview = cv.resize(self.grid, (300, 300))
         
-        # Highlight current cell
+        # Highlight current cell with better visibility
         row = self.current_cell // 9
         col = self.current_cell % 9
         
@@ -410,19 +539,38 @@ class ManualDigitCollector:
         x2 = x1 + cell_width
         y2 = y1 + cell_height
         
-        cv.rectangle(overview, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        # Draw a thicker, more visible highlight
+        cv.rectangle(overview, (x1, y1), (x2, y2), (0, 255, 0), 3)
+        # Add a subtle inner border
+        cv.rectangle(overview, (x1+2, y1+2), (x2-2, y2-2), (0, 200, 0), 1)
         
-        # Add digit labels
+        # Add digit labels with confidence-based coloring
         for i, digit in enumerate(self.digits):
             if digit is not None:
                 r = i // 9
                 c = i % 9
                 text_x = c * cell_width + cell_width // 2 - 5
                 text_y = r * cell_height + cell_height // 2 + 5
+                
+                # Color based on confidence if available
+                if i < len(self.prediction_confidence) and self.prediction_confidence[i] > 0:
+                    conf = self.prediction_confidence[i]
+                    # Green for high confidence, yellow for medium, red for low
+                    if conf > 0.8:
+                        color = (0, 255, 0)  # Green
+                    elif conf > 0.5:
+                        color = (0, 255, 255)  # Yellow
+                    else:
+                        color = (0, 0, 255)  # Red
+                else:
+                    color = (0, 255, 0)  # Default green
+                
                 cv.putText(overview, str(digit), (text_x, text_y), 
-                          cv.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+                          cv.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
         cv.imshow("Grid Overview", overview)
+        # Ensure proper window positioning
+        self._position_windows()
     
     def save_data(self):
         """Save cell images with labels to data directory"""
@@ -551,6 +699,8 @@ class ManualDigitCollector:
         """Main execution function"""
         print("=== Manual Digit Collection Tool ===")
         print(f"Grid Number: {self.grid_number}")
+        print(f"AI Predictions: {'Enabled' if self.use_predictions else 'Disabled'}")
+        print("Press 'p' during capture to toggle predictions on/off")
         
         # Step 1: Capture grid
         if not self.capture_grid():
@@ -566,6 +716,27 @@ class ManualDigitCollector:
         self.save_data()
         
         print("Manual digit collection completed!")
+    
+    def _show_prediction_stats(self):
+        """Show statistics about AI predictions"""
+        if not any(self.predicted_digits):
+            print("No AI predictions available")
+            return
+        
+        non_zero_predictions = [d for d in self.predicted_digits if d is not None and d != 0]
+        if not non_zero_predictions:
+            print("No non-zero predictions made")
+            return
+        
+        avg_confidence = np.mean([self.prediction_confidence[i] for i, d in enumerate(self.predicted_digits) 
+                                 if d is not None and d != 0])
+        
+        print(f"\n=== AI Prediction Statistics ===")
+        print(f"Non-zero predictions: {len(non_zero_predictions)}/81")
+        print(f"Average confidence: {avg_confidence:.3f}")
+        print(f"High confidence (>0.8): {sum(1 for c in self.prediction_confidence if c > 0.8)}")
+        print(f"Medium confidence (0.5-0.8): {sum(1 for c in self.prediction_confidence if 0.5 <= c <= 0.8)}")
+        print(f"Low confidence (<0.5): {sum(1 for c in self.prediction_confidence if 0 < c < 0.5)}")
 
 
 def main():

@@ -20,14 +20,16 @@ class FrameProcessor:
         Apply preprocessing pipeline to frame
         
         Args:
-            frame: Input BGR frame
+            frame: Input BGR frame or grayscale frame
             
         Returns:
             Preprocessed binary image
         """
-        # Convert to grayscale
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        
+        # Convert to grayscale if needed
+        if len(frame.shape) == 3:
+            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        else:
+            gray = frame
         
         # Apply thresholding
         binary = cv.adaptiveThreshold(gray, 255, 

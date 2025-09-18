@@ -1,8 +1,9 @@
-from turtle import width
+
 import cv2 as cv
 import numpy as np
-from PIL import Image
-import pytesseract
+
+
+
 
 
 class CellExtractor:
@@ -24,7 +25,9 @@ class CellExtractor:
                 # Check bounds
                 if (end_x <= self.grid.shape[1] and end_y <= self.grid.shape[0]):
                     cell_image = self.grid[start_y:end_y, start_x:end_x]
-                    cells.append(cell_image)
+                    # Preprocess the cell using the existing preprocessing method
+                    processed_cell = self.preprocess_cell(cell_image)
+                    cells.append(processed_cell)
                 else:
                     cells.append(None)
         
@@ -36,7 +39,11 @@ class CellExtractor:
 
         res = cv.resize(cell,None,fx=5, fy=5, interpolation =  cv.INTER_LINEAR)
 
-        gray = cv.cvtColor(res, cv.COLOR_BGR2GRAY)
+        # Convert to grayscale if needed
+        if len(res.shape) == 3:
+            gray = cv.cvtColor(res, cv.COLOR_BGR2GRAY)
+        else:
+            gray = res
         # edges = cv.Canny(gray,100,200)
         # Order/repeating seems to help here
         blur = cv.GaussianBlur(gray,(5,5),0)
@@ -49,7 +56,6 @@ class CellExtractor:
         kernel = np.ones((5,5),np.uint8)
         dilation = cv.dilate(inverted,kernel,iterations = 1)
         reinverted = cv.bitwise_not(dilation)
-        print(type(reinverted))
         processed_cell = self._resize_cell(reinverted)
 
         return processed_cell
@@ -87,24 +93,3 @@ class CellExtractor:
         
         return canvas
 
-    def save_cells(self, cells, output_dir="cells"):
-        """Save all extracted cells to files for debugging."""
-        import os
-        from pathlib import Path
-        
-        # Create output directory
-        Path(output_dir).mkdir(exist_ok=True)
-        
-        print(f"Saving {len(cells)} cells to {output_dir}/")
-        
-        for i, cell in enumerate(cells):
-            if cell is not None:
-                # Save as cell_00_row0_col0.jpg, cell_01_row0_col1.jpg, etc.
-                row = i // 9
-                col = i % 9
-                filename = f"{output_dir}/cell_{i:02d}_row{row}_col{col}.jpg"
-                clean_cell = self.preprocess_cell(cell)
-                cv.imwrite(filename, clean_cell)
-                print(f"Saved: {filename}")
-            else:
-                print(f"Cell {i}: None - not saved")

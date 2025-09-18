@@ -86,7 +86,6 @@ class Sudoku:
                 else:
                     print(str(self.board[i, j]) + " ", end="")
 
-
     def _solver(self):
         empty_cell = self._find_empty_cell()
 

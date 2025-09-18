@@ -1,8 +1,9 @@
 
 import keras
 from keras import layers
+from keras.saving import register_keras_serializable
 
-
+@register_keras_serializable()
 class DigitClassifier(keras.Model):
     def __init__(self, input_shape=(28, 28, 1), num_classes=10, **kwargs):
         super().__init__(**kwargs)

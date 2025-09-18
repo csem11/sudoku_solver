@@ -1,6 +1,6 @@
 Synthetic Data Summary
 ========================================
 Total synthetic images: 0
-Generated from manual data: 324 images
+Generated from manual data: 1782 images
 
 Digit distribution:
