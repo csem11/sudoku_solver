@@ -34,31 +34,100 @@ class CellExtractor:
         return cells
 
     def preprocess_cell(self, cell):
+        """Preprocess a single cell using the new process_cells method"""
+        return self.process_cells(cell)
 
-        cell = self._crop_cell(cell, 10)
+    def remove_grid_borders(self, cell_image, debug=False):
+        """
+        Remove grid borders from a cell image by iteratively clearing black pixels from the edges,
+        and return the cleaned image (digit only, background white).
+        Steps:
+        1. Darken the image by 30%.
+        2. Blur the image.
+        3. Binarize the image (background white, digit black) using Otsu's thresholding.
+        4. For each edge, clear strips as long as the black percent is above threshold.
+        5. Set those strips to white in the original image.
+        6. Binarize the final cleaned image and return it (digit black, background white).
+        """
+        blur_ksize = 3
+        max_val = 255
+        black_percent_threshold = 0.35
+        edge_strip_width = 3
+        max_strips = 35
 
-        res = cv.resize(cell,None,fx=5, fy=5, interpolation =  cv.INTER_LINEAR)
+        img = cell_image.copy()
+        img_blur = cv.GaussianBlur(img, (17, 17), 0)
+        _, img_bin = cv.threshold(img_blur, 0, max_val, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+        img_bin = cv.bitwise_not(img_bin)
 
-        # Convert to grayscale if needed
-        if len(res.shape) == 3:
-            gray = cv.cvtColor(res, cv.COLOR_BGR2GRAY)
+        h, w = img_bin.shape
+        cleaned = cell_image.copy()
+
+        for side in ['top', 'bottom', 'left', 'right']:
+            for i in range(max_strips):
+                if side == 'top':
+                    y1, y2 = i * edge_strip_width, min((i + 1) * edge_strip_width, h)
+                    x1, x2 = 0, w
+                elif side == 'bottom':
+                    y1, y2 = h - (i + 1) * edge_strip_width, h - i * edge_strip_width
+                    y1 = max(y1, 0)
+                    x1, x2 = 0, w
+                elif side == 'left':
+                    x1, x2 = i * edge_strip_width, min((i + 1) * edge_strip_width, w)
+                    y1, y2 = 0, h
+                elif side == 'right':
+                    x1, x2 = w - (i + 1) * edge_strip_width, w - i * edge_strip_width
+                    x1 = max(x1, 0)
+                    y1, y2 = 0, h
+
+                roi = img_bin[y1:y2, x1:x2]
+                total = roi.size
+                black = np.count_nonzero(roi == 0)
+                black_percent = black / total if total > 0 else 0
+
+                if black_percent > black_percent_threshold:
+                    cleaned[y1:y2, x1:x2] = 255
+                else:
+                    break
+
+        if debug:
+            import matplotlib.pyplot as plt
+            fig, axs = plt.subplots(1, 5, figsize=(20, 4))
+            axs[0].imshow(cell_image, cmap='gray')
+            axs[0].set_title('Original')
+            axs[1].imshow(img_blur, cmap='gray')
+            axs[1].set_title('Blurred')
+            axs[2].imshow(img_bin, cmap='gray')
+            axs[2].set_title('Binarized')
+            axs[3].imshow(cleaned, cmap='gray')
+            axs[3].set_title('Cleaned (White Strips)')
+            for ax in axs:
+                ax.axis('off')
+            plt.show()
+
+        return cleaned
+
+    def process_cells(self, cell_image, debug=False):
+        """
+        Process cell image to remove grid borders, clean up the image, and sharpen the digit
+        """
+        cleaned = self.remove_grid_borders(cell_image, debug=debug)
+
+        if len(cleaned.shape) == 3:
+            gray = cv.cvtColor(cleaned, cv.COLOR_BGR2GRAY)
         else:
-            gray = res
-        # edges = cv.Canny(gray,100,200)
-        # Order/repeating seems to help here
-        blur = cv.GaussianBlur(gray,(5,5),0)
-        # blur = cv.resize(blur,None,fx=2, fy=2, interpolation =  cv.INTER_LINEAR)
-        # blur = cv.GaussianBlur(blur,(5,5),0)
-
-        _ ,thresh = cv.threshold(blur,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
-        inverted = cv.bitwise_not(thresh)
-
-        kernel = np.ones((5,5),np.uint8)
-        dilation = cv.dilate(inverted,kernel,iterations = 1)
-        reinverted = cv.bitwise_not(dilation)
-        processed_cell = self._resize_cell(reinverted)
-
-        return processed_cell
+            gray = cleaned.copy()
+        
+        # Light denoising
+        cleaned = cv.medianBlur(gray, 3)
+        
+        # Enhance contrast
+        cleaned = cv.convertScaleAbs(cleaned, alpha=1.3, beta=0)
+        
+        # Binary threshold (solid digit)
+        _, binary = cv.threshold(cleaned, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+        
+        return binary
         
     
     def _crop_cell(self, cell, crop_pct):

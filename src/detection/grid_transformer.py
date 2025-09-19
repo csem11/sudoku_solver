@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 
 class GridTransformer:
-    def __init__(self, output_size: int = 450):
+    def __init__(self, output_size: int = 600):
 
         self.output_size = output_size
     
