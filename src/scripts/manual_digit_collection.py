@@ -23,6 +23,7 @@ class ManualDigitCollector:
     def __init__(self):
         self.grid = None
         self.cells = None
+        self.raw_cells = None  # Store raw cell images
         self.processed_cells = None  # Store processed cell images
         self.current_cell = 0
         self.digits = [None] * 81  # 9x9 grid
@@ -65,6 +66,14 @@ class ManualDigitCollector:
                 if cell is not None:
                     # Ensure cell is in the right format (28x28 grayscale)
                     if len(cell.shape) == 2:
+                        cell = cell.reshape(28, 28, 1)
+                    elif len(cell.shape) == 3 and cell.shape[2] == 1:
+                        # Already in correct format
+                        pass
+                    else:
+                        # Convert to grayscale and reshape
+                        if len(cell.shape) == 3:
+                            cell = cv.cvtColor(cell, cv.COLOR_BGR2GRAY)
                         cell = cell.reshape(28, 28, 1)
                     cell_images.append(cell)
                 else:
@@ -133,18 +142,14 @@ class ManualDigitCollector:
                         grid_transformer = GridTransformer(self.output_size)
                         self.grid = grid_transformer.transform(frame, approx)
                         
-                        # Extract cells using existing module
+                        # Extract both raw and processed cells using existing module
                         cell_extractor = CellExtractor(self.grid)
-                        self.cells = cell_extractor.extract_cells(self.cell_size)
+                        # Use the new attribute structure
+                        self.raw_cells = cell_extractor.raw_cells
+                        self.processed_cells = cell_extractor.processed_cells
                         
-                        # Process all cells for labeling
-                        self.processed_cells = []
-                        for cell in self.cells:
-                            if cell is not None:
-                                processed_cell = cell_extractor.preprocess_cell(cell)
-                                self.processed_cells.append(processed_cell)
-                            else:
-                                self.processed_cells.append(None)
+                        # Keep cells for backward compatibility (processed cells)
+                        self.cells = self.processed_cells
                         
                         cv.putText(display_frame, "Grid detected! Press 'c' to capture", 
                                  (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -573,24 +578,35 @@ class ManualDigitCollector:
         self._position_windows()
     
     def save_data(self):
-        """Save cell images with labels to data directory"""
-        # Create output directory
+        """Save both raw and processed cell images with labels to data directory"""
+        # Create output directories
         output_dir = Path("data/digits/manual")
-        output_dir.mkdir(parents=True, exist_ok=True)
+        raw_dir = output_dir / "raw"
+        processed_dir = output_dir / "processed"
         
-        # Save individual processed cell images with their assigned digits
-        saved_count = 0
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        processed_dir.mkdir(parents=True, exist_ok=True)
         
-        for i, (processed_cell, digit) in enumerate(zip(self.processed_cells, self.digits)):
-            if processed_cell is not None and digit is not None:
+        # Save individual raw and processed cell images with their assigned digits
+        raw_saved_count = 0
+        processed_saved_count = 0
+        
+        for i, (raw_cell, processed_cell, digit) in enumerate(zip(self.raw_cells, self.processed_cells, self.digits)):
+            if raw_cell is not None and processed_cell is not None and digit is not None:
                 row = i // 9
                 col = i % 9
                 
-                # Save pre-processed cell image (already processed during capture)
-                filename = generate_manual_filename(digit, self.grid_number, i)
-                filepath = output_dir / filename
-                cv.imwrite(str(filepath), processed_cell)
-                saved_count += 1
+                # Save raw cell image
+                raw_filename = generate_manual_filename(digit, self.grid_number, i, "raw")
+                raw_filepath = raw_dir / raw_filename
+                cv.imwrite(str(raw_filepath), raw_cell)
+                raw_saved_count += 1
+                
+                # Save processed cell image
+                processed_filename = generate_manual_filename(digit, self.grid_number, i, "processed")
+                processed_filepath = processed_dir / processed_filename
+                cv.imwrite(str(processed_filepath), processed_cell)
+                processed_saved_count += 1
         
         # Save the complete grid as a numpy array
         grid_array = np.array(self.digits).reshape(9, 9)
@@ -610,7 +626,8 @@ class ManualDigitCollector:
             f.write("=" * 40 + "\n")
             f.write(f"Grid Number: {self.grid_number}\n")
             f.write(f"Total cells processed: {len([c for c in self.cells if c is not None])}\n")
-            f.write(f"Digits assigned: {saved_count}\n")
+            f.write(f"Raw images saved: {raw_saved_count}\n")
+            f.write(f"Processed images saved: {processed_saved_count}\n")
             f.write(f"Empty cells: {len([d for d in self.digits if d is None])}\n")
             f.write("NOTE: All cells must be assigned digits 0-9 (no blanks allowed)\n")
             f.write("\nDigit distribution:\n")
@@ -618,21 +635,28 @@ class ManualDigitCollector:
                 count = sum(1 for d in self.digits if d == digit)
                 f.write(f"Digit {digit}: {count} cells\n")
         
-        print(f"Saved {saved_count} pre-processed digit images to {output_dir}/")
+        print(f"Saved {raw_saved_count} raw digit images to {raw_dir}/")
+        print(f"Saved {processed_saved_count} processed digit images to {processed_dir}/")
         print("Files saved:")
         print(f"- grid_{self.grid_number}.npy (numpy array)")
         print(f"- grid_{self.grid_number}.txt (text format)")
         print("- data_summary.txt (collection summary)")
-        print("- Individual pre-processed digit images with labels and grid numbers in filenames")
+        print("- Individual raw digit images in raw/ subdirectory")
+        print("- Individual processed digit images in processed/ subdirectory")
         print(f"- Output directory: {output_dir}/")
     
     def _save_digits(self):
         """Save the collected digits to files with labels in filename"""
-        # Create output directory
+        # Create output directories
         output_dir = Path("data/digits/manual")
-        output_dir.mkdir(parents=True, exist_ok=True)
+        raw_dir = output_dir / "raw"
+        processed_dir = output_dir / "processed"
         
-        total_saved = 0
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        processed_dir.mkdir(parents=True, exist_ok=True)
+        
+        total_raw_saved = 0
+        total_processed_saved = 0
         all_digits = []
         
         # Process each grid
@@ -642,24 +666,33 @@ class ManualDigitCollector:
             cells = grid_data['cells']
             digits = grid_data['digits']
             
-            # Save individual processed cell images with their assigned digits
+            # Save individual raw and processed cell images with their assigned digits
             cell_extractor = CellExtractor(grid)
-            grid_saved = 0
+            # Use the new attribute structure
+            raw_cells = cell_extractor.raw_cells
+            processed_cells = cell_extractor.processed_cells
             
-            for i, (cell, digit) in enumerate(zip(cells, digits)):
-                if cell is not None and digit is not None:
+            grid_raw_saved = 0
+            grid_processed_saved = 0
+            
+            for i, (raw_cell, processed_cell, digit) in enumerate(zip(raw_cells, processed_cells, digits)):
+                if raw_cell is not None and processed_cell is not None and digit is not None:
                     row = i // 9
                     col = i % 9
                     
-                    # Process cell using cell extractor's preprocessing method
-                    processed_cell = cell_extractor.preprocess_cell(cell)
+                    # Save raw cell with digit label and grid ID in filename
+                    raw_filename = generate_manual_filename(digit, grid_id, i, "raw")
+                    raw_filepath = raw_dir / raw_filename
+                    cv.imwrite(str(raw_filepath), raw_cell)
+                    grid_raw_saved += 1
+                    total_raw_saved += 1
                     
                     # Save processed cell with digit label and grid ID in filename
-                    filename = generate_manual_filename(digit, grid_id, i)
-                    filepath = output_dir / filename
-                    cv.imwrite(str(filepath), processed_cell)
-                    grid_saved += 1
-                    total_saved += 1
+                    processed_filename = generate_manual_filename(digit, grid_id, i, "processed")
+                    processed_filepath = processed_dir / processed_filename
+                    cv.imwrite(str(processed_filepath), processed_cell)
+                    grid_processed_saved += 1
+                    total_processed_saved += 1
             
             # Save individual grid as numpy array
             grid_array = np.array(digits).reshape(9, 9)
@@ -674,25 +707,27 @@ class ManualDigitCollector:
                     f.write(row_str + "\n")
             
             all_digits.extend(digits)
-            print(f"Grid {grid_id}: Saved {grid_saved} digit images")
+            print(f"Grid {grid_id}: Saved {grid_raw_saved} raw and {grid_processed_saved} processed digit images")
         
         # Save combined summary
         with open(output_dir / "data_summary.txt", "w") as f:
             f.write("Manual Digit Collection Summary\n")
             f.write("=" * 40 + "\n")
             f.write(f"Total grids processed: {len(self.grids)}\n")
-            f.write(f"Total digits assigned: {total_saved}\n")
+            f.write(f"Total raw images saved: {total_raw_saved}\n")
+            f.write(f"Total processed images saved: {total_processed_saved}\n")
             f.write(f"Empty cells: {len([d for d in all_digits if d is None])}\n")
             f.write("\nDigit distribution across all grids:\n")
             for digit in range(10):
                 count = sum(1 for d in all_digits if d == digit)
                 f.write(f"Digit {digit}: {count} cells\n")
         
-        print(f"\nSaved {total_saved} processed digit images from {len(self.grids)} grid(s) to {output_dir}/")
+        print(f"\nSaved {total_raw_saved} raw and {total_processed_saved} processed digit images from {len(self.grids)} grid(s)")
         print("Files saved:")
         print(f"- {len(self.grids)} individual grid files (grid_*.npy, grid_*.txt)")
         print("- data_summary.txt (collection summary)")
-        print("- Individual processed digit images with labels in filenames")
+        print("- Individual raw digit images in raw/ subdirectory")
+        print("- Individual processed digit images in processed/ subdirectory")
         print(f"- Images saved in: {output_dir}/")
     
     def run(self):

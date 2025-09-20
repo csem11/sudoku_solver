@@ -11,8 +11,8 @@ def parse_manual_filename(filename: str) -> Optional[Dict[str, Any]]:
     """
     Parse manual image filename to extract metadata.
     
-    Format: {digit}_g{grid_id}_c{cell_id}_man.jpg
-    Example: "5_g0_c23_man.jpg" -> {"digit": 5, "grid_id": 0, "cell_id": 23, "type": "manual"}
+    Format: {digit}_g{grid_id}_c{cell_id}_man_{image_type}.jpg
+    Example: "5_g0_c23_man_processed.jpg" -> {"digit": 5, "grid_id": 0, "cell_id": 23, "type": "manual", "image_type": "processed"}
     
     Args:
         filename: The filename to parse
@@ -26,10 +26,10 @@ def parse_manual_filename(filename: str) -> Optional[Dict[str, Any]]:
         
         # Split by underscore
         parts = name.split('_')
-        if len(parts) != 4 or parts[3] != 'man':
+        if len(parts) != 5 or parts[3] != 'man':
             return None
             
-        digit, grid_part, cell_part, man_part = parts
+        digit, grid_part, cell_part, man_part, image_type = parts
         
         # Parse digit
         digit_val = int(digit)
@@ -49,6 +49,7 @@ def parse_manual_filename(filename: str) -> Optional[Dict[str, Any]]:
             "grid_id": grid_id,
             "cell_id": cell_id,
             "type": "manual",
+            "image_type": image_type,
             "filename": filename
         }
         
@@ -128,21 +129,22 @@ def parse_filename(filename: str) -> Optional[Dict[str, Any]]:
     return parse_manual_filename(filename)
 
 
-def generate_manual_filename(digit: int, grid_id: int, cell_id: int) -> str:
+def generate_manual_filename(digit: int, grid_id: int, cell_id: int, image_type: str = "processed") -> str:
     """
     Generate manual image filename.
     
-    Format: {digit}_g{grid_id}_c{cell_id}_man.jpg
+    Format: {digit}_g{grid_id}_c{cell_id}_man_{image_type}.jpg
     
     Args:
         digit: The digit value (0-9)
         grid_id: The grid identifier
         cell_id: The cell identifier
+        image_type: Type of image ("raw" or "processed")
         
     Returns:
         Generated filename
     """
-    return f"{digit}_g{grid_id}_c{cell_id}_man.jpg"
+    return f"{digit}_g{grid_id}_c{cell_id}_man_{image_type}.jpg"
 
 
 def generate_synthetic_filename(digit: int, grid_id: int, cell_id: int, synthetic_id: int) -> str:
@@ -208,9 +210,13 @@ def validate_filename(filename: str) -> bool:
 # Example usage and testing
 if __name__ == "__main__":
     # Test manual filename parsing
-    test_manual = "5_g0_c23_man.jpg"
-    result = parse_manual_filename(test_manual)
-    print(f"Manual: {test_manual} -> {result}")
+    test_manual_raw = "5_g0_c23_man_raw.jpg"
+    result = parse_manual_filename(test_manual_raw)
+    print(f"Manual raw: {test_manual_raw} -> {result}")
+    
+    test_manual_processed = "5_g0_c23_man_processed.jpg"
+    result = parse_manual_filename(test_manual_processed)
+    print(f"Manual processed: {test_manual_processed} -> {result}")
     
     # Test synthetic filename parsing
     test_synthetic = "5_g0_c23_001_syn.jpg"
@@ -218,8 +224,11 @@ if __name__ == "__main__":
     print(f"Synthetic: {test_synthetic} -> {result}")
     
     # Test generation
-    manual_name = generate_manual_filename(5, 0, 23)
-    print(f"Generated manual: {manual_name}")
+    manual_raw_name = generate_manual_filename(5, 0, 23, "raw")
+    print(f"Generated manual raw: {manual_raw_name}")
+    
+    manual_processed_name = generate_manual_filename(5, 0, 23, "processed")
+    print(f"Generated manual processed: {manual_processed_name}")
     
     synthetic_name = generate_synthetic_filename(5, 0, 23, 1)
     print(f"Generated synthetic: {synthetic_name}")

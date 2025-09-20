@@ -27,19 +27,26 @@ class SyntheticDataGenerator:
         self.synthetic_data_dir = Path(synthetic_data_dir)
         self.synthetic_data_dir.mkdir(parents=True, exist_ok=True)
         
-        # Load existing manual data
+        # Load existing manual data from processed directory
         self.manual_images = self._load_manual_images()
-        print(f"Loaded {len(self.manual_images)} manual digit images")
+        print(f"Loaded {len(self.manual_images)} manual digit images from processed directory")
         
     def _load_manual_images(self) -> List[Tuple[np.ndarray, int, str, int, int]]:
-        """Load all manual digit images with their labels and metadata"""
+        """Load all manual digit images with their labels and metadata from processed directory"""
         images = []
         
         if not self.manual_data_dir.exists():
             print(f"Manual data directory {self.manual_data_dir} does not exist!")
             return images
+        
+        # Load from processed directory only
+        manual_path = self.manual_data_dir / 'processed'
+        
+        if not manual_path.exists():
+            print(f"Manual processed directory {manual_path} does not exist!")
+            return images
             
-        for file_path in self.manual_data_dir.glob("*.jpg"):
+        for file_path in manual_path.glob("*.jpg"):
             # Parse filename using new naming convention
             metadata = parse_manual_filename(file_path.name)
             if metadata is None:
@@ -297,7 +304,7 @@ def main():
     
     args = parser.parse_args()
     
-    # Create generator
+    # Create generator (uses processed images only)
     generator = SyntheticDataGenerator(args.manual_dir, args.synthetic_dir)
     
     # Generate synthetic data

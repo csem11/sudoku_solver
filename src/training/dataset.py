@@ -3,6 +3,7 @@ from PIL import Image
 import os
 import keras
 import sys
+import cv2 as cv
 from pathlib import Path
 
 # Add src to path to import naming utilities
@@ -28,8 +29,8 @@ def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=
     synthetic_images = []
     synthetic_labels = []
 
-    # Collect manual images
-    manual_dir = os.path.join(data_dir, 'manual')
+    # Collect manual images from processed directory
+    manual_dir = os.path.join(data_dir, 'manual', 'processed')
     if os.path.exists(manual_dir):
         for img_file in os.listdir(manual_dir):
             if img_file.endswith('.jpg') or img_file.endswith('.png'):
@@ -40,6 +41,8 @@ def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=
                 img = Image.open(os.path.join(manual_dir, img_file)).convert('L')
                 manual_images.append(np.array(img))
                 manual_labels.append(metadata['digit'])
+    else:
+        print(f"Warning: Manual processed directory not found at {manual_dir}")
 
     # Collect synthetic images
     synthetic_dir = os.path.join(data_dir, 'synthetic')
@@ -92,8 +95,32 @@ def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=
     if len(images) == 0:
         return np.array([]), np.array([])
 
-    indices = np.random.permutation(len(images))
-    images = [images[i] for i in indices]
+    # Ensure all images are 28x28 and add debugging
+    print(f"Processing {len(images)} images...")
+    processed_images = []
+    for i, img in enumerate(images):
+        if img is None:
+            print(f"Warning: Image {i} is None, skipping...")
+            continue
+            
+        # Ensure image is 2D
+        if len(img.shape) == 3:
+            img = np.mean(img, axis=2)
+        
+        # Resize to 28x28 if not already
+        if img.shape != (28, 28):
+            img = cv.resize(img, (28, 28), interpolation=cv.INTER_AREA)
+        
+        processed_images.append(img)
+    
+    # Update labels to match processed images
+    labels = labels[:len(processed_images)]
+    
+    if len(processed_images) == 0:
+        return np.array([]), np.array([])
+
+    indices = np.random.permutation(len(processed_images))
+    images = [processed_images[i] for i in indices]
     labels = [labels[i] for i in indices]
 
     X = np.array(images)

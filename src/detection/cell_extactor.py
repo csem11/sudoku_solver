@@ -9,7 +9,7 @@ import numpy as np
 class CellExtractor:
     def __init__(self, grid):
         self.grid = grid
-        self.cells = self.extract_cells()
+        self.raw_cells, self.processed_cells = self.extract_raw_and_processed_cells()
 
     def extract_cells(self, cell_size=50):
         cells = []
@@ -32,6 +32,31 @@ class CellExtractor:
                     cells.append(None)
         
         return cells
+    
+    def extract_raw_and_processed_cells(self, cell_size=50):
+        """Extract both raw and processed cells"""
+        raw_cells = []
+        processed_cells = []
+        
+        for row in range(9):
+            for col in range(9):
+                start_x = col * cell_size
+                end_x = start_x + cell_size
+
+                start_y = row * cell_size
+                end_y = start_y + cell_size
+
+                # Check bounds
+                if (end_x <= self.grid.shape[1] and end_y <= self.grid.shape[0]):
+                    raw_cell = self.grid[start_y:end_y, start_x:end_x]
+                    processed_cell = self.preprocess_cell(raw_cell)
+                    raw_cells.append(raw_cell)
+                    processed_cells.append(processed_cell)
+                else:
+                    raw_cells.append(None)
+                    processed_cells.append(None)
+        
+        return raw_cells, processed_cells
 
     def preprocess_cell(self, cell):
         """Preprocess a single cell using the new process_cells method"""
@@ -49,6 +74,7 @@ class CellExtractor:
         5. Set those strips to white in the original image.
         6. Binarize the final cleaned image and return it (digit black, background white).
         """
+
         blur_ksize = 3
         max_val = 255
         black_percent_threshold = 0.35
@@ -56,6 +82,10 @@ class CellExtractor:
         max_strips = 35
 
         img = cell_image.copy()
+        # Convert to grayscale if needed
+        if len(img.shape) == 3:
+            img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        # img = (img.astype(np.float32) * 0.7).clip(0, 255).astype(np.uint8)
         img_blur = cv.GaussianBlur(img, (17, 17), 0)
         _, img_bin = cv.threshold(img_blur, 0, max_val, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
         img_bin = cv.bitwise_not(img_bin)
@@ -90,6 +120,8 @@ class CellExtractor:
                 else:
                     break
 
+
+
         if debug:
             import matplotlib.pyplot as plt
             fig, axs = plt.subplots(1, 5, figsize=(20, 4))
@@ -107,27 +139,68 @@ class CellExtractor:
 
         return cleaned
 
+    def find_digit_in_cell(self, cell_image):
+        """
+        Finds the bounding rectangle of the largest contour (digit) in the cell image,
+        crops to that region, and resizes back to the original cell_image size.
+        """
+        # Clean the image: binarize and dilate to connect digit parts
+        # Convert to grayscale if needed
+        if len(cell_image.shape) == 3:
+            cell_gray = cv.cvtColor(cell_image, cv.COLOR_BGR2GRAY)
+        else:
+            cell_gray = cell_image
+        _, cleaned = cv.threshold(cell_gray, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+        kernel = np.ones((5,5), np.uint8)
+        dilation = cv.dilate(cleaned, kernel, iterations=1)
+        # Find contours
+        contours, _ = cv.findContours(dilation, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+        if contours:
+            largest = max(contours, key=cv.contourArea)
+            x, y, w, h = cv.boundingRect(largest)
+            # Crop to bounding box
+            cropped = cell_image[y:y+h, x:x+w]
+            # Resize back to original size
+            resized = cv.resize(cropped, (cell_image.shape[1], cell_image.shape[0]), interpolation=cv.INTER_LINEAR)
+            return resized
+        else:
+            # If no contour found, return the original image
+            return cell_image
+
     def process_cells(self, cell_image, debug=False):
         """
         Process cell image to remove grid borders, clean up the image, and sharpen the digit
         """
-        cleaned = self.remove_grid_borders(cell_image, debug=debug)
+        filtered_digit = self.find_digit_in_cell(cell_image)
 
-        if len(cleaned.shape) == 3:
-            gray = cv.cvtColor(cleaned, cv.COLOR_BGR2GRAY)
-        else:
-            gray = cleaned.copy()
-        
-        # Light denoising
-        cleaned = cv.medianBlur(gray, 3)
-        
-        # Enhance contrast
-        cleaned = cv.convertScaleAbs(cleaned, alpha=1.3, beta=0)
-        
-        # Binary threshold (solid digit)
-        _, binary = cv.threshold(cleaned, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-        
-        return binary
+        # Ensure the image is grayscale for adaptive thresholding
+        if len(filtered_digit.shape) == 3:
+            filtered_digit = cv.cvtColor(filtered_digit, cv.COLOR_BGR2GRAY)
+
+        binary = cv.GaussianBlur(filtered_digit, (3, 3), 0)
+        thresh = cv.adaptiveThreshold(binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                              cv.THRESH_BINARY, 11, 2)
+
+        # Add a decent blur to the thresholded image to help smooth digit edges
+        thresh = cv.GaussianBlur(thresh, (7, 7), 0)
+        kernel = np.ones((3,3), np.uint8)
+        binary = cv.dilate(thresh, kernel, iterations=1)
+        thresh = cv.GaussianBlur(binary, (7, 7), 0)
+        # # Simply sharpen digit
+        # Invert colors
+        binary = cv.bitwise_not(binary)
+        # Erode the image
+        kernel = np.ones((7,7), np.uint8)
+        binary = cv.dilate(binary, kernel, iterations=1)
+        kernel = np.ones((3,3), np.uint8)
+        binary = cv.erode(binary, kernel, iterations=1)
+
+        filtered_digit = binary
+
+        # Resize to 28x28 for AI model compatibility
+        filtered_digit = self._resize_cell(filtered_digit, target_size=(28, 28))
+
+        return filtered_digit
         
     
     def _crop_cell(self, cell, crop_pct):

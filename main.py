@@ -50,7 +50,7 @@ def main():
 
             # Extract cells from the grid image
             cell_extractor = CellExtractor(grid_img)
-            cells = np.array(cell_extractor.cells)
+            cells = np.array(cell_extractor.processed_cells)
             # Ensure cells are in the right shape for the generator
             cells = np.array([cell for cell in cells if cell is not None])
             if len(cells) == 81:

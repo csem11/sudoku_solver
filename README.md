@@ -35,7 +35,7 @@ python run_manual_digit_collection.py
 This will:
 - Capture a Sudoku grid from your camera
 - Allow you to manually assign digits to each cell
-- Save the labeled images to `data/digits/manual/`
+- Save the labeled images to `data/digits/manual/` (both raw and processed versions in separate subdirectories)
 
 ### 2. Synthetic Data Generation
 

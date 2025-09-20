@@ -95,7 +95,8 @@ class GridCaptureTool:
         
         # Extract cells using the src module
         cell_extractor = CellExtractor(resized_grid)
-        cells = cell_extractor.extract_cells(cell_size=self.cell_size)
+        # Use the new attribute structure - get processed cells
+        cells = cell_extractor.processed_cells
         
         return cells
     
