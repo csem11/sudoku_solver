@@ -18,6 +18,21 @@ class GridDetector:
     def find_grid(self, frame):
         """Legacy method - use detect() instead"""
         return self.detect(frame)
+    
+    def highlight_grid(self, frame, contour, color=(0, 255, 0), thickness=2):
+        """Highlight the detected grid contour on the frame"""
+        if contour is not None:
+            # Draw the contour
+            cv.drawContours(frame, [contour], -1, color, thickness)
+            
+            # Draw corner points
+            corners = contour.reshape(4, 2)
+            for i, corner in enumerate(corners):
+                cv.circle(frame, tuple(corner.astype(int)), 5, color, -1)
+                cv.putText(frame, str(i), tuple(corner.astype(int) + 10), 
+                          cv.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        
+        return frame
 
     def _find_contours(self, frame, min_area=10000, max_area=800000):
         contours, _ = cv.findContours(frame, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)

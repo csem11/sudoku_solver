@@ -12,7 +12,18 @@ from training.model import DigitClassifier
 class GridGenerator:
     def __init__(self):
         model_path = Path(__file__).parent.parent.parent / "models" / "digit_classifier.keras"
+
         self.model = tf.keras.models.load_model(model_path)
+        
+        # Prediction statistics
+        self.pred_stats = {
+            'highest_confidence': 0.0,
+            'lowest_confidence': 1.0,
+            'average_confidence': 0.0,
+            'high_confidence_count': 0,  # predictions >= 0.8
+            'low_confidence_count': 0,   # predictions < 0.5
+            'total_predictions': 0
+        }
     
     def generate_grid(self, cell_images, include_prob_grid=True):
         # Convert RGB images to grayscale if needed
@@ -37,6 +48,9 @@ class GridGenerator:
         cell_images = cell_images.astype(np.float32) / 255.0
         
         predictions = self.model.predict(cell_images)
+        
+        # Update prediction statistics
+        self._update_prediction_stats(predictions)
 
         predicted_digits = np.argmax(predictions, axis=1)
         grid = predicted_digits.reshape(9, 9)
@@ -49,13 +63,49 @@ class GridGenerator:
         
         return grid
 
+    def _update_prediction_stats(self, predictions):
+        """Update prediction statistics based on the confidence values"""
+        if predictions is None or len(predictions) == 0:
+            return
+            
+        # Get the maximum confidence for each prediction
+        max_confidences = np.max(predictions, axis=1)
+        
+        # Update statistics
+        self.pred_stats['highest_confidence'] = float(np.max(max_confidences))
+        self.pred_stats['lowest_confidence'] = float(np.min(max_confidences))
+        self.pred_stats['average_confidence'] = float(np.mean(max_confidences))
+        self.pred_stats['high_confidence_count'] = int(np.sum(max_confidences >= 0.8))
+        self.pred_stats['low_confidence_count'] = int(np.sum(max_confidences < 0.5))
+        self.pred_stats['total_predictions'] = len(max_confidences)
+
+    def get_prediction_stats(self):
+        """Return current prediction statistics"""
+        return self.pred_stats.copy()
+
+    def print_prediction_stats(self):
+        """Print prediction statistics in a formatted way"""
+        stats = self.pred_stats
+        print("\n=== Prediction Statistics ===")
+        print(f"Total predictions: {stats['total_predictions']}")
+        print(f"Highest confidence: {stats['highest_confidence']:.3f}")
+        print(f"Lowest confidence: {stats['lowest_confidence']:.3f}")
+        print(f"Average confidence: {stats['average_confidence']:.3f}")
+        print(f"High confidence (≥0.8): {stats['high_confidence_count']}")
+        print(f"Low confidence (<0.5): {stats['low_confidence_count']}")
+        print("=" * 30)
+
     def show_board(self, grid, prob_grid=None, cell_size=50):
         """
         Visualize the Sudoku grid with predicted digits and color squares based on confidence.
         Green = high confidence, Red = low confidence.
+        Includes prediction statistics on the right side.
         """
         import cv2 as cv
-        board_img = np.ones((9 * cell_size, 9 * cell_size, 3), dtype=np.uint8) * 255
+        
+        # Calculate board dimensions with space for stats
+        stats_width = 200
+        board_img = np.ones((9 * cell_size, 9 * cell_size + stats_width, 3), dtype=np.uint8) * 255
 
         for i in range(9):
             for j in range(9):
@@ -92,6 +142,38 @@ class GridGenerator:
             cv.line(board_img, (0, i * cell_size), (9 * cell_size, i * cell_size), (0, 0, 0), thickness)
             cv.line(board_img, (i * cell_size, 0), (i * cell_size, 9 * cell_size), (0, 0, 0), thickness)
 
+        # Add prediction statistics on the right side
+        self._draw_prediction_stats(board_img, 9 * cell_size + 10, cell_size)
+
         cv.imshow("Predicted Sudoku Board", board_img)
         cv.waitKey(0)
         cv.destroyAllWindows()
+
+    def _draw_prediction_stats(self, img, start_x, cell_size):
+        """Draw prediction statistics on the right side of the board image"""
+        import cv2 as cv
+        
+        stats = self.pred_stats
+        font = cv.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        thickness = 1
+        line_height = 25
+        y_start = 20
+        
+        # Title
+        cv.putText(img, "Prediction Stats:", (start_x, y_start), font, font_scale + 0.1, (0, 0, 0), thickness + 1)
+        y_start += line_height + 10
+        
+        # Statistics
+        stats_text = [
+            f"Total: {stats['total_predictions']}",
+            f"High conf: {stats['high_confidence_count']}",
+            f"Low conf: {stats['low_confidence_count']}",
+            f"Max: {stats['highest_confidence']:.3f}",
+            f"Min: {stats['lowest_confidence']:.3f}",
+            f"Avg: {stats['average_confidence']:.3f}"
+        ]
+        
+        for text in stats_text:
+            cv.putText(img, text, (start_x, y_start), font, font_scale, (50, 50, 50), thickness)
+            y_start += line_height
