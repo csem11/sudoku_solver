@@ -26,7 +26,7 @@ def main():
     
     frame_processor = FrameProcessor()
     grid_detector = GridDetector()
-    grid_transformer = GridTransformer()
+    grid_transformer = GridTransformer(450)  # Use same size as manual tool for better predictions
     cell_extractor = None
     grid_generator = GridGenerator()
 

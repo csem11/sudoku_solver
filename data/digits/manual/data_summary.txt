@@ -1,6 +1,6 @@
 Manual Digit Collection Summary
 ========================================
-Grid Number: 20
+Grid Number: 24
 Total cells processed: 81
 Raw images saved: 81
 Processed images saved: 81
@@ -8,13 +8,13 @@ Empty cells: 0
 NOTE: All cells must be assigned digits 0-9 (no blanks allowed)
 
 Digit distribution:
-Digit 0: 45 cells
-Digit 1: 3 cells
-Digit 2: 4 cells
-Digit 3: 5 cells
-Digit 4: 4 cells
-Digit 5: 4 cells
+Digit 0: 46 cells
+Digit 1: 4 cells
+Digit 2: 3 cells
+Digit 3: 2 cells
+Digit 4: 5 cells
+Digit 5: 5 cells
 Digit 6: 4 cells
-Digit 7: 4 cells
-Digit 8: 3 cells
+Digit 7: 3 cells
+Digit 8: 4 cells
 Digit 9: 5 cells

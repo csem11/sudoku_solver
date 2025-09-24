@@ -52,7 +52,7 @@ def train_model(data_dir=None,
         data_dir = str(data_dir)
     
     print(f"Loading dataset from: {data_dir}")
-    X, y = retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=.5)
+    X, y = retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=1)
     print(f"Loaded {len(X)} samples")
     
     # Split data
