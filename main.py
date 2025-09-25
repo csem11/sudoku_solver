@@ -9,41 +9,60 @@ import time
 from pathlib import Path
 from src import VideoCapture, FrameProcessor, GridDetector, GridTransformer, CellExtractor, GridGenerator
 from src.generation.sudoku import Sudoku
+from src.overlay.perspective_overlay import PerspectiveOverlay
 
 
 def overlay_predicted_digits(frame, grid_corners, predicted_grid, prob_grid, cell_size=50):
     """
-    Optimized overlay function for predicted digits on the live video frame.
+    Perspective-aware overlay function using inverse transformation.
+    Based on Mirda81/Sudoku repository approach.
     """
     if grid_corners is None or predicted_grid is None:
         return frame
     
-    # Pre-calculate grid dimensions
-    x_coords = grid_corners[:, 0]
-    y_coords = grid_corners[:, 1]
-    min_x, max_x = int(min(x_coords)), int(max(x_coords))
-    min_y, max_y = int(min(y_coords)), int(max(y_coords))
+    # Initialize perspective overlay system
+    overlay_system = PerspectiveOverlay()
     
-    cell_width = (max_x - min_x) / 9
-    cell_height = (max_y - min_y) / 9
+    # Get precise cell positions using inverse perspective transformation
+    cell_positions = overlay_system.get_cell_positions(frame, grid_corners)
     
-    # Pre-calculate font scale and thickness
-    font_scale = min(cell_width, cell_height) / 50
+    # Calculate rotation angle
+    rotation_angle = overlay_system.calculate_grid_rotation(grid_corners)
+    
+    # Use clean frame without debug overlays
+    clean_frame = frame.copy()
+    
+    # Calculate adaptive font scaling
+    if cell_positions:
+        # Use first cell to estimate size
+        first_cell = list(cell_positions.values())[0]
+        avg_cell_size = (first_cell['width'] + first_cell['height']) / 2
+    else:
+        avg_cell_size = 50  # Default
+    
+    font_scale = max(0.3, min(2.0, avg_cell_size / 40))
     thickness = max(1, int(font_scale * 2))
-    radius = int(min(cell_width, cell_height) * 0.3)
     
-    # Draw only non-zero digits to reduce processing
+    # Draw predicted digits
+    digits_drawn = 0
     for row in range(9):
         for col in range(9):
             digit = predicted_grid[row, col]
             if digit != 0:  # Skip zero digits
                 confidence = prob_grid[row, col] if prob_grid is not None else 1.0
+                digits_drawn += 1
                 
-                # Calculate cell position
-                cell_x = int(min_x + col * cell_width + cell_width / 2)
-                cell_y = int(min_y + row * cell_height + cell_height / 2)
+                # Get cell position from perspective-aware system
+                cell_info = cell_positions.get((row, col))
+                if cell_info is None:
+                    continue
                 
-                # Determine color based on confidence (simplified)
+                cell_center_x, cell_center_y = cell_info['center']
+                
+                # Adaptive radius based on cell size
+                cell_radius = int(min(cell_info['width'], cell_info['height']) * 0.25)
+                
+                # Determine color based on confidence
                 if confidence > 0.8:
                     color = (0, 255, 0)  # Green
                 elif confidence > 0.5:
@@ -51,104 +70,125 @@ def overlay_predicted_digits(frame, grid_corners, predicted_grid, prob_grid, cel
                 else:
                     color = (0, 0, 255)  # Red
                 
-                # Draw background circle and digit in one pass
-                cv.circle(frame, (cell_x, cell_y), radius, (255, 255, 255), -1)
-                cv.circle(frame, (cell_x, cell_y), radius, color, 2)
-                
-                # Draw digit text
+                # Draw predicted digit text only (no circles)
                 text_size, _ = cv.getTextSize(str(digit), cv.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
-                text_x = cell_x - text_size[0] // 2
-                text_y = cell_y + text_size[1] // 2
-                
-                cv.putText(frame, str(digit), (text_x, text_y), 
-                          cv.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness)
+                text_x = cell_center_x - text_size[0] // 2
+                text_y = cell_center_y + text_size[1] // 2
+                cv.putText(clean_frame, str(digit), (text_x, text_y), 
+                          cv.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
+    
+    return clean_frame
+
+
+def add_status_banner(frame, solved_grid, prob_grid=None):
+    """
+    Add a professional status banner with confidence overlay in top right.
+    Shows "Looking..." or "Solved!" on left, digit confidence stats on right.
+    """
+    frame_height, frame_width = frame.shape[:2]
+    banner_height = 100  # Taller to fit confidence overlay
+    
+    # Create banner background - dark semi-transparent overlay
+    banner_overlay = frame.copy()
+    cv.rectangle(banner_overlay, (0, 0), (frame_width, banner_height), (40, 40, 40), -1)
+    
+    # Blend the banner with the original frame (70% opacity)
+    cv.addWeighted(banner_overlay, 0.7, frame, 0.3, 0, frame)
+    
+    # Status text on the left
+    if solved_grid is not None:
+        # "Solved!" in bold green
+        status_text = "Solved!"
+        font = cv.FONT_HERSHEY_SIMPLEX
+        font_scale = 1.2
+        thickness = 3  # Bold
+        color = (0, 255, 0)  # Bright green
+    else:
+        # "Looking..." in italics (simulate with thinner font)
+        status_text = "Looking..."
+        font = cv.FONT_HERSHEY_SIMPLEX
+        font_scale = 1.0
+        thickness = 2  # Normal weight
+        color = (200, 200, 200)  # Light gray
+    
+    # Position status text on left side
+    text_size, _ = cv.getTextSize(status_text, font, font_scale, thickness)
+    status_x = 30  # Left margin
+    status_y = (banner_height + text_size[1]) // 2
+    
+    # Draw status text
+    cv.putText(frame, status_text, (status_x, status_y), font, font_scale, color, thickness)
+    
+    # Add confidence overlay in top right of banner
+    if prob_grid is not None:
+        add_confidence_to_banner(frame, prob_grid, banner_height, frame_width)
+    
+    # Add subtle instructions in bottom left of banner
+    instructions = "Press 'q' to quit"
+    inst_font_scale = 0.4
+    inst_thickness = 1
+    inst_color = (150, 150, 150)
+    
+    inst_x = 30
+    inst_y = banner_height - 15
+    
+    cv.putText(frame, instructions, (inst_x, inst_y), 
+              cv.FONT_HERSHEY_SIMPLEX, inst_font_scale, inst_color, inst_thickness)
     
     return frame
 
 
-def add_confidence_overlay(frame, grid_corners, prob_grid):
+def add_confidence_to_banner(frame, prob_grid, banner_height, frame_width):
     """
-    Add confidence statistics overlay above the detected grid.
-    
-    Args:
-        frame: The video frame to overlay on
-        grid_corners: The 4 corners of the detected grid
-        prob_grid: 9x9 array of confidence scores
-        
-    Returns:
-        frame with confidence overlay
+    Add compact confidence overlay to the top right of the banner.
     """
-    if grid_corners is None or prob_grid is None:
-        return frame
-    
-    # Calculate grid position
-    x_coords = grid_corners[:, 0]
-    y_coords = grid_corners[:, 1]
-    min_x, max_x = int(min(x_coords)), int(max(x_coords))
-    min_y, max_y = int(min(y_coords)), int(max(y_coords))
-    
     # Calculate confidence statistics
     non_zero_probs = prob_grid[prob_grid > 0]  # Only consider non-zero predictions
     if len(non_zero_probs) > 0:
         avg_confidence = np.mean(non_zero_probs)
         max_confidence = np.max(non_zero_probs)
-        min_confidence = np.min(non_zero_probs)
         high_conf_count = np.sum(non_zero_probs >= 0.8)
         total_predictions = len(non_zero_probs)
     else:
         avg_confidence = 0.0
         max_confidence = 0.0
-        min_confidence = 0.0
         high_conf_count = 0
         total_predictions = 0
     
-    # Position overlay at fixed location on frame perimeter (top-right corner)
-    frame_height, frame_width = frame.shape[:2]
-    overlay_width = 250
-    overlay_height = 80
-    overlay_x = frame_width - overlay_width - 10  # 10 pixels from right edge
-    overlay_y = 10  # 10 pixels from top edge
+    # Position in top right of banner
+    overlay_width = 280
+    overlay_x = frame_width - overlay_width - 20  # Right margin
     
-    # Draw background rectangle
-    cv.rectangle(frame, (overlay_x, overlay_y), 
-                (overlay_x + overlay_width, overlay_y + overlay_height), 
-                (0, 0, 0), -1)
-    cv.rectangle(frame, (overlay_x, overlay_y), 
-                (overlay_x + overlay_width, overlay_y + overlay_height), 
-                (255, 255, 255), 2)
-    
-    # Prepare text lines - more compact layout
+    # Prepare compact text layout
     font = cv.FONT_HERSHEY_SIMPLEX
     font_scale = 0.4
     thickness = 1
     line_height = 12
-    text_x = overlay_x + 8
-    text_y = overlay_y + 15
+    text_x = overlay_x
+    text_y = 18
     
     # Title
-    cv.putText(frame, "Confidence", (text_x, text_y), 
-              font, font_scale + 0.1, (255, 255, 255), thickness + 1)
+    cv.putText(frame, "Digit Recognition", (text_x, text_y), 
+              font, font_scale, (255, 255, 255), thickness)
     text_y += line_height + 2
     
-    # Statistics - more compact
-    solve_threshold = 0.99
-    can_solve = avg_confidence >= solve_threshold
-    solve_status = "READY" if can_solve else "WAITING"
-    solve_color = (0, 255, 0) if can_solve else (0, 0, 255)
+    # Convert to percentage for user clarity
+    avg_percent = int(avg_confidence * 100)
+    max_percent = int(max_confidence * 100)
     
+    # Compact statistics
     stats_lines = [
-        f"Avg: {avg_confidence:.3f}",
-        f"Max: {max_confidence:.3f}",
-        f"High: {high_conf_count}/{total_predictions}",
-        f"Solve: {solve_status}"
+        f"Avg. Digit Confidence: {avg_percent}%",
+        f"Highest Digit Confidence: {max_percent}%",
+        f"High Confidence Digits: {high_conf_count}/{total_predictions}"
     ]
     
     for line in stats_lines:
         cv.putText(frame, line, (text_x, text_y), 
-                  font, font_scale, (255, 255, 255), thickness)
+                  font, font_scale - 0.05, (200, 200, 200), thickness)
         text_y += line_height
     
-    # Add confidence bar - compact version
+    # Add compact accuracy bar
     bar_x = text_x
     bar_y = text_y + 3
     bar_width = 120
@@ -156,55 +196,179 @@ def add_confidence_overlay(frame, grid_corners, prob_grid):
     
     # Draw background bar
     cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
-                (50, 50, 50), -1)
+                (60, 60, 60), -1)
     
-    # Draw confidence bar
+    # Draw accuracy bar
     if avg_confidence > 0:
         bar_fill_width = int(bar_width * avg_confidence)
-        # Color based on solve readiness
-        if can_solve:
-            bar_color = (0, 255, 0)  # Green for ready to solve
+        # Color based on accuracy level
+        solve_threshold = 0.99
+        if avg_confidence >= solve_threshold:
+            bar_color = (0, 255, 0)  # Green for excellent
         elif avg_confidence > 0.8:
-            bar_color = (0, 255, 255)  # Yellow for high confidence
-        elif avg_confidence > 0.5:
-            bar_color = (255, 165, 0)  # Orange for medium confidence
+            bar_color = (0, 255, 255)  # Yellow for good
+        elif avg_confidence > 0.6:
+            bar_color = (0, 165, 255)  # Orange for fair
         else:
-            bar_color = (0, 0, 255)  # Red for low confidence
+            bar_color = (0, 0, 255)  # Red for poor
         
         cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_fill_width, bar_y + bar_height), 
                     bar_color, -1)
         
-        # Draw solve threshold line
+        # Draw quality threshold line (99% mark)
         threshold_x = bar_x + int(bar_width * solve_threshold)
-        cv.line(frame, (threshold_x, bar_y - 2), (threshold_x, bar_y + bar_height + 2), 
-               (255, 255, 255), 2)
+        cv.line(frame, (threshold_x, bar_y - 1), (threshold_x, bar_y + bar_height + 1), 
+               (255, 255, 255), 1)
     
     # Draw bar border
     cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
-                (255, 255, 255), 1)
+                (150, 150, 150), 1)
+
+
+def add_confidence_overlay(frame, grid_corners, prob_grid):
+    """
+    Add user-friendly digit recognition statistics overlay at bottom right.
+    
+    Args:
+        frame: The video frame to overlay on
+        grid_corners: The 4 corners of the detected grid
+        prob_grid: 9x9 array of digit recognition confidence scores
+        
+    Returns:
+        frame with digit recognition overlay
+    """
+    if grid_corners is None or prob_grid is None:
+        return frame
+    
+    # Calculate confidence statistics
+    non_zero_probs = prob_grid[prob_grid > 0]  # Only consider non-zero predictions
+    if len(non_zero_probs) > 0:
+        avg_confidence = np.mean(non_zero_probs)
+        max_confidence = np.max(non_zero_probs)
+        high_conf_count = np.sum(non_zero_probs >= 0.8)
+        total_predictions = len(non_zero_probs)
+    else:
+        avg_confidence = 0.0
+        max_confidence = 0.0
+        high_conf_count = 0
+        total_predictions = 0
+    
+    # Position overlay at bottom-right corner
+    frame_height, frame_width = frame.shape[:2]
+    overlay_width = 280
+    overlay_height = 90
+    overlay_x = frame_width - overlay_width - 15  # 15 pixels from right edge
+    overlay_y = frame_height - overlay_height - 15  # 15 pixels from bottom edge
+    
+    # Draw semi-transparent background
+    overlay = frame.copy()
+    cv.rectangle(overlay, (overlay_x, overlay_y), 
+                (overlay_x + overlay_width, overlay_y + overlay_height), 
+                (30, 30, 30), -1)
+    cv.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
+    
+    # Draw border
+    cv.rectangle(frame, (overlay_x, overlay_y), 
+                (overlay_x + overlay_width, overlay_y + overlay_height), 
+                (100, 100, 100), 1)
+    
+    # Prepare text layout
+    font = cv.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.45
+    thickness = 1
+    line_height = 15
+    text_x = overlay_x + 10
+    text_y = overlay_y + 18
+    
+    # Title - specific to digit recognition
+    cv.putText(frame, "Digit Recognition", (text_x, text_y), 
+              font, font_scale, (255, 255, 255), thickness)
+    text_y += line_height + 3
+    
+    # User-friendly statistics
+    solve_threshold = 0.99
+    can_solve = avg_confidence >= solve_threshold
+    
+    # Convert to percentage for user clarity
+    avg_percent = int(avg_confidence * 100)
+    max_percent = int(max_confidence * 100)
+    
+    stats_lines = [
+        f"Avg. Digit Confidence: {avg_percent}%",
+        f"Highest Digit Confidence: {max_percent}%",
+        f"High Confidence Digits: {high_conf_count}/{total_predictions}"
+    ]
+    
+    for line in stats_lines:
+        cv.putText(frame, line, (text_x, text_y), 
+                  font, font_scale - 0.05, (200, 200, 200), thickness)
+        text_y += line_height
+    
+    # Add accuracy bar
+    bar_x = text_x
+    bar_y = text_y + 5
+    bar_width = 150
+    bar_height = 10
+    
+    # Draw background bar
+    cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
+                (60, 60, 60), -1)
+    
+    # Draw accuracy bar
+    if avg_confidence > 0:
+        bar_fill_width = int(bar_width * avg_confidence)
+        # Color based on accuracy level
+        if can_solve:
+            bar_color = (0, 255, 0)  # Green for excellent
+        elif avg_confidence > 0.8:
+            bar_color = (0, 255, 255)  # Yellow for good
+        elif avg_confidence > 0.6:
+            bar_color = (0, 165, 255)  # Orange for fair
+        else:
+            bar_color = (0, 0, 255)  # Red for poor
+        
+        cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_fill_width, bar_y + bar_height), 
+                    bar_color, -1)
+        
+        # Draw quality threshold line (99% mark)
+        threshold_x = bar_x + int(bar_width * solve_threshold)
+        cv.line(frame, (threshold_x, bar_y - 2), (threshold_x, bar_y + bar_height + 2), 
+               (255, 255, 255), 1)
+    
+    # Draw bar border
+    cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
+                (150, 150, 150), 1)
     
     return frame
 
 
 def overlay_complete_solution(frame, grid_corners, solved_grid, predicted_grid=None):
     """
-    Overlay the complete solved Sudoku grid on the live video frame.
+    Perspective-aware overlay for solved digits using inverse transformation.
+    Based on Mirda81/Sudoku repository approach.
     Shows only solved digits for empty cells, preserving original digits.
     """
     if grid_corners is None or solved_grid is None:
         return frame
     
-    # Pre-calculate grid dimensions
-    x_coords = grid_corners[:, 0]
-    y_coords = grid_corners[:, 1]
-    min_x, max_x = int(min(x_coords)), int(max(x_coords))
-    min_y, max_y = int(min(y_coords)), int(max(y_coords))
+    # Initialize perspective overlay system
+    overlay_system = PerspectiveOverlay()
     
-    cell_width = (max_x - min_x) / 9
-    cell_height = (max_y - min_y) / 9
+    # Get precise cell positions using inverse perspective transformation
+    cell_positions = overlay_system.get_cell_positions(frame, grid_corners)
     
-    # Pre-calculate font scale and thickness for text that fits in grid
-    font_scale = min(cell_width, cell_height) / 60  # Smaller scale to fit better
+    # Calculate rotation angle
+    rotation_angle = overlay_system.calculate_grid_rotation(grid_corners)
+    
+    # Calculate adaptive font scaling
+    if cell_positions:
+        # Use first cell to estimate size
+        first_cell = list(cell_positions.values())[0]
+        avg_cell_size = (first_cell['width'] + first_cell['height']) / 2
+    else:
+        avg_cell_size = 50  # Default
+    
+    font_scale = max(0.3, min(1.5, avg_cell_size / 60))  # Smaller scale to fit better
     thickness = max(1, int(font_scale * 1.5))
     
     # Draw solved digits only for empty cells
@@ -218,18 +382,22 @@ def overlay_complete_solution(frame, grid_corners, solved_grid, predicted_grid=N
             
             # Only show solved digit if it's not zero
             if solved_digit != 0:
-                # Calculate cell position
-                cell_x = int(min_x + col * cell_width + cell_width / 2)
-                cell_y = int(min_y + row * cell_height + cell_height / 2)
+                # Get cell position from perspective-aware system
+                cell_info = cell_positions.get((row, col))
+                if cell_info is None:
+                    continue
                 
-                # Draw solved digit as blue text only (no circles)
-                color = (255, 0, 0)  # Blue for solved digits
+                cell_center_x, cell_center_y = cell_info['center']
                 
-                # Draw digit text
+                # Draw solved digit as green text only (no circles) - make more prominent
+                color = (0, 200, 0)  # Slightly darker green for solved digits
+                font_scale = max(0.6, font_scale)  # Ensure minimum visibility
+                thickness = max(2, thickness)  # Ensure minimum thickness
+                
+                # Draw simple text (disable rotation for now)
                 text_size, _ = cv.getTextSize(str(solved_digit), cv.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
-                text_x = cell_x - text_size[0] // 2
-                text_y = cell_y + text_size[1] // 2
-                
+                text_x = cell_center_x - text_size[0] // 2
+                text_y = cell_center_y + text_size[1] // 2
                 cv.putText(frame, str(solved_digit), (text_x, text_y), 
                           cv.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
     
@@ -355,7 +523,7 @@ def main():
     prob_grid = None
     solved_grid = None
     last_grid_corners = None
-    show_solution = False  # Toggle for showing solved puzzle
+    # Removed show_solution toggle - always show solved grid when available
     
     # Performance optimization variables
     last_prediction_time = 0
@@ -478,18 +646,12 @@ def main():
                 # Update corners for overlay positioning (every frame)
                 last_grid_corners = grid_corners_reshaped
                 
-                # Overlay digits on the live video frame
+                # Overlay only solved digits on the live video frame
                 if predicted_grid is not None:
-                    if show_solution and solved_grid is not None:
-                        # Show complete solved grid overlaid on the detected grid
-                        print(f"Displaying solved grid overlay (show_solution={show_solution}, solved_grid available)")
+                    # Only show solved grid when available (no predicted digit overlays)
+                    if solved_grid is not None:
                         display_frame = overlay_complete_solution(
                             display_frame, last_grid_corners, solved_grid, predicted_grid
-                        )
-                    else:
-                        # Show only original predicted digits
-                        display_frame = overlay_predicted_digits(
-                            display_frame, last_grid_corners, predicted_grid, prob_grid
                         )
         else:
             predicted_grid = None
@@ -499,23 +661,8 @@ def main():
             cached_cells = None
             cached_grid_corners = None
 
-        # Add status text to frame
-        status_text = f"Solution: {'ON' if show_solution else 'OFF'}"
-        cv.putText(display_frame, status_text, (10, 30), 
-                  cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv.putText(display_frame, status_text, (10, 30), 
-                  cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 1)
-        
-        # Add instructions
-        instructions = "Press 's' to toggle solution, 'q' to quit"
-        cv.putText(display_frame, instructions, (10, 60), 
-                  cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-        cv.putText(display_frame, instructions, (10, 60), 
-                  cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-        
-        # Add confidence overlay above the grid
-        if predicted_grid is not None and prob_grid is not None and last_grid_corners is not None:
-            display_frame = add_confidence_overlay(display_frame, last_grid_corners, prob_grid)
+        # Add clean banner interface at top with confidence overlay
+        display_frame = add_status_banner(display_frame, solved_grid, prob_grid)
 
         # Show the frame with predicted digits
         cv.imshow("Sudoku Solver", display_frame)
@@ -523,14 +670,6 @@ def main():
         key = cv.waitKey(1) & 0xFF
         if key == ord('q'):
             break
-        elif key == ord('s'):
-            # Toggle solution display
-            show_solution = not show_solution
-            print(f"Solution display: {'ON' if show_solution else 'OFF'}")
-            if show_solution and solved_grid is not None:
-                print("Solved grid is available for display")
-            elif show_solution and solved_grid is None:
-                print("No solved grid available yet")
 
     cap.stop()
     cv.destroyAllWindows()
