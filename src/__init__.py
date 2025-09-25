@@ -4,7 +4,7 @@ Sudoku Solver - Main package
 """
 
 # Core modules
-from .sudoku import Sudoku
+from .generation.sudoku import Sudoku
 
 # Detection modules
 from .detection.grid_detector import GridDetector
