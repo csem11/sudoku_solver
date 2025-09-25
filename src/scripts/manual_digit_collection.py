@@ -583,9 +583,11 @@ class ManualDigitCollector:
         output_dir = Path("data/digits/manual")
         raw_dir = output_dir / "raw"
         processed_dir = output_dir / "processed"
+        grids_dir = Path("data/grids")
         
         raw_dir.mkdir(parents=True, exist_ok=True)
         processed_dir.mkdir(parents=True, exist_ok=True)
+        grids_dir.mkdir(parents=True, exist_ok=True)
         
         # Save individual raw and processed cell images with their assigned digits
         raw_saved_count = 0
@@ -620,6 +622,13 @@ class ManualDigitCollector:
                 row_str = " ".join([str(d) if d is not None else "." for d in row])
                 f.write(row_str + "\n")
         
+        # Save the grid image to data/grids directory
+        if self.grid is not None:
+            grid_filename = f"grid_{self.grid_number}.jpg"
+            grid_filepath = grids_dir / grid_filename
+            cv.imwrite(str(grid_filepath), self.grid)
+            print(f"Saved grid image to {grid_filepath}")
+        
         # Save summary
         with open(output_dir / "data_summary.txt", "w") as f:
             f.write("Manual Digit Collection Summary\n")
@@ -640,10 +649,12 @@ class ManualDigitCollector:
         print("Files saved:")
         print(f"- grid_{self.grid_number}.npy (numpy array)")
         print(f"- grid_{self.grid_number}.txt (text format)")
+        print(f"- grid_{self.grid_number}.jpg (grid image)")
         print("- data_summary.txt (collection summary)")
         print("- Individual raw digit images in raw/ subdirectory")
         print("- Individual processed digit images in processed/ subdirectory")
-        print(f"- Output directory: {output_dir}/")
+        print(f"- Digit data directory: {output_dir}/")
+        print(f"- Grid image directory: {grids_dir}/")
     
     def _save_digits(self):
         """Save the collected digits to files with labels in filename"""
@@ -651,9 +662,11 @@ class ManualDigitCollector:
         output_dir = Path("data/digits/manual")
         raw_dir = output_dir / "raw"
         processed_dir = output_dir / "processed"
+        grids_dir = Path("data/grids")
         
         raw_dir.mkdir(parents=True, exist_ok=True)
         processed_dir.mkdir(parents=True, exist_ok=True)
+        grids_dir.mkdir(parents=True, exist_ok=True)
         
         total_raw_saved = 0
         total_processed_saved = 0
@@ -706,6 +719,13 @@ class ManualDigitCollector:
                     row_str = " ".join([str(d) if d is not None else "." for d in row])
                     f.write(row_str + "\n")
             
+            # Save the grid image to data/grids directory
+            if grid is not None:
+                grid_filename = f"grid_{grid_id}.jpg"
+                grid_filepath = grids_dir / grid_filename
+                cv.imwrite(str(grid_filepath), grid)
+                print(f"Grid {grid_id}: Saved grid image to {grid_filepath}")
+            
             all_digits.extend(digits)
             print(f"Grid {grid_id}: Saved {grid_raw_saved} raw and {grid_processed_saved} processed digit images")
         
@@ -725,10 +745,12 @@ class ManualDigitCollector:
         print(f"\nSaved {total_raw_saved} raw and {total_processed_saved} processed digit images from {len(self.grids)} grid(s)")
         print("Files saved:")
         print(f"- {len(self.grids)} individual grid files (grid_*.npy, grid_*.txt)")
+        print(f"- {len(self.grids)} grid images (grid_*.jpg)")
         print("- data_summary.txt (collection summary)")
         print("- Individual raw digit images in raw/ subdirectory")
         print("- Individual processed digit images in processed/ subdirectory")
-        print(f"- Images saved in: {output_dir}/")
+        print(f"- Digit data directory: {output_dir}/")
+        print(f"- Grid image directory: {grids_dir}/")
     
     def run(self):
         """Main execution function"""

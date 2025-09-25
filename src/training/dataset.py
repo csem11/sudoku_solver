@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from utils.naming import parse_filename
 
 
-def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=0.25):
+def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=0.25, include_zero=True):
     """
     Load digit dataset from directory, including both manual and synthetic digit images.
 
@@ -19,6 +19,7 @@ def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=
         data_dir: Path to directory containing digit images (should contain 'manual' and/or 'synthetic' subdirs)
         return_categorical: If True, convert labels to categorical format
         manual_proportion: Proportion of data that should be manual (between 0 and 1)
+        include_zero: If False, exclude digit 0 from the dataset (default: False)
 
     Returns:
         X: Image array (samples, height, width, channels)
@@ -95,6 +96,23 @@ def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=
     if len(images) == 0:
         return np.array([]), np.array([])
 
+    # Filter out digit 0 if include_zero is False and remap labels
+    if not include_zero:
+        filtered_images = []
+        filtered_labels = []
+        for img, label in zip(images, labels):
+            if int(label) != 0:  # Exclude digit 0
+                filtered_images.append(img)
+                # Remap labels: 1->0, 2->1, 3->2, ..., 9->8
+                remapped_label = int(label) - 1
+                filtered_labels.append(remapped_label)
+        images = filtered_images
+        labels = filtered_labels
+        
+        if len(images) == 0:
+            print("Warning: No non-zero digits found in dataset")
+            return np.array([]), np.array([])
+
     # Ensure all images are 28x28 and add debugging
     print(f"Processing {len(images)} images...")
     processed_images = []
@@ -139,7 +157,9 @@ def retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=
     # Convert labels to categorical if requested
     if return_categorical:
         y_int = y.astype(int)
-        y = keras.utils.to_categorical(y_int, num_classes=10)
+        # Adjust number of classes based on include_zero parameter
+        num_classes = 9 if not include_zero else 10
+        y = keras.utils.to_categorical(y_int, num_classes=num_classes)
 
     return X, y
 

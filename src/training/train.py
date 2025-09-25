@@ -41,7 +41,8 @@ def train_model(data_dir=None,
                 epochs=100, 
                 validation_split=0.2,
                 save_model=True,
-                model_path='models/digit_classifier.keras'):
+                model_path='models/digit_classifier.keras',
+                include_zero=True):
     """Train the digit classification model."""
     
     # Set default data directory if not provided
@@ -52,8 +53,9 @@ def train_model(data_dir=None,
         data_dir = str(data_dir)
     
     print(f"Loading dataset from: {data_dir}")
-    X, y = retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=1)
+    X, y = retrieve_digit_dataset(data_dir, return_categorical=True, manual_proportion=0.5, include_zero=include_zero)
     print(f"Loaded {len(X)} samples")
+    print(f"Including zero digit: {include_zero}")
     
     # Split data
     print("Splitting data...")
@@ -67,7 +69,9 @@ def train_model(data_dir=None,
     # Create model
     print("Creating model...")
     input_shape = X_train.shape[1:]
-    model = create_model(input_shape=input_shape, num_classes=10)
+    num_classes = 9 if not include_zero else 10
+    print(f"Number of classes: {num_classes}")
+    model = create_model(input_shape=input_shape, num_classes=num_classes)
     
     # Print model summary
     model.summary()
@@ -114,6 +118,8 @@ def main():
                        help='Path to save the trained model')
     parser.add_argument('--no_save', action='store_true',
                        help='Do not save the trained model')
+    parser.add_argument('--include_zero', action='store_true',
+                       help='Include digit 0 in the dataset and model (default: False)')
     
     args = parser.parse_args()
     
@@ -124,7 +130,8 @@ def main():
         epochs=args.epochs,
         validation_split=args.validation_split,
         save_model=not args.no_save,
-        model_path=args.model_path
+        model_path=args.model_path,
+        include_zero=args.include_zero
     )
     
     print("\nTraining completed!")
