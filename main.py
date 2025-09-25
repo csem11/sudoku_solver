@@ -131,7 +131,7 @@ def add_confidence_overlay(frame, grid_corners, prob_grid):
     text_y += line_height + 2
     
     # Statistics - more compact
-    solve_threshold = 0.999
+    solve_threshold = 0.99
     can_solve = avg_confidence >= solve_threshold
     solve_status = "READY" if can_solve else "WAITING"
     solve_color = (0, 255, 0) if can_solve else (0, 0, 255)
@@ -182,6 +182,56 @@ def add_confidence_overlay(frame, grid_corners, prob_grid):
     # Draw bar border
     cv.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
                 (255, 255, 255), 1)
+    
+    return frame
+
+
+def overlay_complete_solution(frame, grid_corners, solved_grid, predicted_grid=None):
+    """
+    Overlay the complete solved Sudoku grid on the live video frame.
+    Shows only solved digits for empty cells, preserving original digits.
+    """
+    if grid_corners is None or solved_grid is None:
+        return frame
+    
+    # Pre-calculate grid dimensions
+    x_coords = grid_corners[:, 0]
+    y_coords = grid_corners[:, 1]
+    min_x, max_x = int(min(x_coords)), int(max(x_coords))
+    min_y, max_y = int(min(y_coords)), int(max(y_coords))
+    
+    cell_width = (max_x - min_x) / 9
+    cell_height = (max_y - min_y) / 9
+    
+    # Pre-calculate font scale and thickness for text that fits in grid
+    font_scale = min(cell_width, cell_height) / 60  # Smaller scale to fit better
+    thickness = max(1, int(font_scale * 1.5))
+    
+    # Draw solved digits only for empty cells
+    for row in range(9):
+        for col in range(9):
+            solved_digit = solved_grid[row, col]
+            
+            # Skip if this cell already has a predicted digit (show original)
+            if predicted_grid is not None and predicted_grid[row, col] != 0:
+                continue
+            
+            # Only show solved digit if it's not zero
+            if solved_digit != 0:
+                # Calculate cell position
+                cell_x = int(min_x + col * cell_width + cell_width / 2)
+                cell_y = int(min_y + row * cell_height + cell_height / 2)
+                
+                # Draw solved digit as blue text only (no circles)
+                color = (255, 0, 0)  # Blue for solved digits
+                
+                # Draw digit text
+                text_size, _ = cv.getTextSize(str(solved_digit), cv.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+                text_x = cell_x - text_size[0] // 2
+                text_y = cell_y + text_size[1] // 2
+                
+                cv.putText(frame, str(solved_digit), (text_x, text_y), 
+                          cv.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
     
     return frame
 
@@ -408,7 +458,7 @@ def main():
                                 if len(non_zero_probs) > 0:
                                     avg_confidence = np.mean(non_zero_probs)
                                     
-                                    if avg_confidence >= 0.999:  # 99.9% confidence threshold
+                                    if avg_confidence >= 0.99:  # 99% confidence threshold
                                         print(f"High confidence detected ({avg_confidence:.3f}), attempting to solve...")
                                         solved_grid = solve_sudoku_puzzle(predicted_grid)
                                         if solved_grid is not None:
@@ -431,9 +481,10 @@ def main():
                 # Overlay digits on the live video frame
                 if predicted_grid is not None:
                     if show_solution and solved_grid is not None:
-                        # Show solved puzzle with both original and solved digits
-                        display_frame = overlay_solved_digits(
-                            display_frame, last_grid_corners, predicted_grid, solved_grid, prob_grid
+                        # Show complete solved grid overlaid on the detected grid
+                        print(f"Displaying solved grid overlay (show_solution={show_solution}, solved_grid available)")
+                        display_frame = overlay_complete_solution(
+                            display_frame, last_grid_corners, solved_grid, predicted_grid
                         )
                     else:
                         # Show only original predicted digits
@@ -455,6 +506,13 @@ def main():
         cv.putText(display_frame, status_text, (10, 30), 
                   cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 1)
         
+        # Add instructions
+        instructions = "Press 's' to toggle solution, 'q' to quit"
+        cv.putText(display_frame, instructions, (10, 60), 
+                  cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        cv.putText(display_frame, instructions, (10, 60), 
+                  cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        
         # Add confidence overlay above the grid
         if predicted_grid is not None and prob_grid is not None and last_grid_corners is not None:
             display_frame = add_confidence_overlay(display_frame, last_grid_corners, prob_grid)
@@ -469,6 +527,10 @@ def main():
             # Toggle solution display
             show_solution = not show_solution
             print(f"Solution display: {'ON' if show_solution else 'OFF'}")
+            if show_solution and solved_grid is not None:
+                print("Solved grid is available for display")
+            elif show_solution and solved_grid is None:
+                print("No solved grid available yet")
 
     cap.stop()
     cv.destroyAllWindows()

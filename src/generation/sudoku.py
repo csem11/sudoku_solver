@@ -106,9 +106,9 @@ class Sudoku:
         return False
         
     def solve_board(self):
-        self._solver()
-
+        result = self._solver()
         self.print_board()
+        return result
 
 
 if __name__ == "__main__":
