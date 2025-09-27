@@ -191,3 +191,12 @@ Desktop.ini
 *.pkl
 *.joblib
 *.model
+
+# Data files - keep folder structure but ignore content
+data/digits/manual/*.npy
+data/digits/manual/*.txt
+data/digits/manual/*.jpg
+data/digits/manual/*.png
+data/digits/synthetic/*
+data/grids/*
+data/analysis/*
