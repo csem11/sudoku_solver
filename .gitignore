@@ -184,3 +184,10 @@ Desktop.ini
 *.avi
 *.mov
 *.mkv
+
+# Machine learning models (large files)
+*.keras
+*.h5
+*.pkl
+*.joblib
+*.model

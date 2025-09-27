@@ -29,7 +29,7 @@ source venv/bin/activate
 Collect training data by manually labeling digits from captured Sudoku grids:
 
 ```bash
-python run_manual_digit_collection.py
+python -m src.scripts.manual_digit_collection
 ```
 
 This will:
@@ -42,14 +42,7 @@ This will:
 Generate additional training data by creating augmented versions of manually collected images:
 
 ```bash
-# Generate 100 synthetic samples per digit (default, append mode)
-python generate_synthetic_data.py
-
-# Generate 50 synthetic samples per digit in overwrite mode
-python generate_synthetic_data.py --n-samples-per-digit 50 --mode overwrite
-
-# Interactive mode
-python run_synthetic_data_generation.py
+python -m src.scripts.synethic_digit_generator
 ```
 
 The synthetic data generator applies various transformations:
@@ -119,10 +112,14 @@ data/
 src/
 ├── capture/             # Video capture and frame processing
 ├── detection/           # Grid detection and cell extraction
+├── generation/          # Sudoku solving and grid generation
+├── overlay/            # Perspective-aware overlay system
 ├── training/            # Model training and dataset handling
+├── utils/              # Utility functions and naming conventions
 └── scripts/             # Utility scripts
     ├── manual_digit_collection.py
-    └── synethic_data_generator.py
+    ├── process_raw_images.py
+    └── synethic_digit_generator.py
 ```
 
 ## Requirements

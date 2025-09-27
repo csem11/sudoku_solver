@@ -6,7 +6,6 @@ Sudoku Solver - Real-time grid detection with digit prediction overlay
 import cv2 as cv
 import numpy as np
 import time
-from pathlib import Path
 from src import VideoCapture, FrameProcessor, GridDetector, GridTransformer, CellExtractor, GridGenerator
 from src.generation.sudoku import Sudoku
 from src.overlay.perspective_overlay import PerspectiveOverlay
