@@ -2,6 +2,10 @@
 
 A computer vision-based Sudoku solver that detects and solves Sudoku puzzles from camera input in real-time.
 
+## Demo
+
+![Sudoku Solver Demo](demo/demo.gif)
+
 ## Features
 
 - Real-time Sudoku grid detection from camera
